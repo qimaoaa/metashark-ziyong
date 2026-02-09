@@ -31,6 +31,14 @@ namespace Jellyfin.Plugin.MetaShark.Controllers
     [Route("/plugin/metashark")]
     public class ApiController : ControllerBase
     {
+        private static readonly char[] NewLineSeparators = { '\r', '\n' };
+
+        private static readonly Action<ILogger, string?, Exception?> LogSkipRefreshEmptyId =
+            LoggerMessage.Define<string?>(LogLevel.Warning, new EventId(1, nameof(RefreshSeriesByEpisodeGroupMap)), "Skip refresh for series with empty Id. Name: {Name}");
+
+        private static readonly Action<ILogger, int, Exception?> LogQueuedRefresh =
+            LoggerMessage.Define<int>(LogLevel.Information, new EventId(2, nameof(RefreshSeriesByEpisodeGroupMap)), "Queued refresh for {Count} series from episode group map.");
+
         private readonly DoubanApi doubanApi;
         private readonly IHttpClientFactory httpClientFactory;
         private readonly ILibraryManager libraryManager;
@@ -71,6 +79,20 @@ namespace Jellyfin.Plugin.MetaShark.Controllers
                 throw new ResourceNotFoundException();
             }
 
+            if (!Uri.TryCreate(url, UriKind.Absolute, out var uri))
+            {
+                throw new ResourceNotFoundException();
+            }
+
+            return await this.ProxyImage(uri).ConfigureAwait(false);
+        }
+
+        /// <summary>
+        /// 代理访问图片.
+        /// </summary>
+        /// <returns><placeholder>A <see cref="Task"/> representing the asynchronous operation.</placeholder></returns>
+        public async Task<Stream> ProxyImage(Uri url)
+        {
             HttpResponseMessage response;
             var httpClient = this.GetHttpClient();
             using (var requestMessage = new HttpRequestMessage(HttpMethod.Get, url))
@@ -157,7 +179,7 @@ namespace Jellyfin.Plugin.MetaShark.Controllers
 
                 if (item.Id == Guid.Empty)
                 {
-                    this.logger.LogWarning("Skip refresh for series with empty Id. Name: {Name}", item.Name);
+                    LogSkipRefreshEmptyId(this.logger, item.Name, null);
                     continue;
                 }
 
@@ -165,47 +187,47 @@ namespace Jellyfin.Plugin.MetaShark.Controllers
                 queued++;
             }
 
-            this.logger.LogInformation("Queued refresh for {Count} series from episode group map.", queued);
+            LogQueuedRefresh(this.logger, queued, null);
             return new ApiResult(1, $"Queued {queued} series refresh(es).");
+
+            static HashSet<string> GetMappedSeriesIds(string map)
+            {
+                var result = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+                if (string.IsNullOrWhiteSpace(map))
+                {
+                    return result;
+                }
+
+                var lines = map.Split(NewLineSeparators, StringSplitOptions.RemoveEmptyEntries);
+                foreach (var line in lines)
+                {
+                    var trimmed = line.Trim();
+                    if (string.IsNullOrWhiteSpace(trimmed) || trimmed.StartsWith('#'))
+                    {
+                        continue;
+                    }
+
+                    var parts = trimmed.Split('=', 2, StringSplitOptions.RemoveEmptyEntries);
+                    if (parts.Length != 2)
+                    {
+                        continue;
+                    }
+
+                    var seriesId = parts[0].Trim();
+                    if (!string.IsNullOrWhiteSpace(seriesId))
+                    {
+                        result.Add(seriesId);
+                    }
+                }
+
+                return result;
+            }
         }
 
         private HttpClient GetHttpClient()
         {
             var client = this.httpClientFactory.CreateClient(NamedClient.Default);
             return client;
-        }
-
-        private static HashSet<string> GetMappedSeriesIds(string mapping)
-        {
-            var result = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-            if (string.IsNullOrWhiteSpace(mapping))
-            {
-                return result;
-            }
-
-            var lines = mapping.Split(new[] { '\r', '\n' }, StringSplitOptions.RemoveEmptyEntries);
-            foreach (var line in lines)
-            {
-                var trimmed = line.Trim();
-                if (string.IsNullOrWhiteSpace(trimmed) || trimmed.StartsWith("#", StringComparison.Ordinal))
-                {
-                    continue;
-                }
-
-                var parts = trimmed.Split('=', 2, StringSplitOptions.RemoveEmptyEntries);
-                if (parts.Length != 2)
-                {
-                    continue;
-                }
-
-                var seriesId = parts[0].Trim();
-                if (!string.IsNullOrWhiteSpace(seriesId))
-                {
-                    result.Add(seriesId);
-                }
-            }
-
-            return result;
         }
     }
 }
