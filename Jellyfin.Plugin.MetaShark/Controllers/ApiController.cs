@@ -149,6 +149,12 @@ namespace Jellyfin.Plugin.MetaShark.Controllers
                     continue;
                 }
 
+                if (item.Id == Guid.Empty)
+                {
+                    _logger.LogWarning("Skip refresh for series with empty Id. Name: {Name}", item.Name);
+                    continue;
+                }
+
                 _providerManager.QueueRefresh(item.Id, refreshOptions, RefreshPriority.High);
                 queued++;
             }
