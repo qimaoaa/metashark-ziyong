@@ -185,7 +185,7 @@ namespace Jellyfin.Plugin.MetaShark.Providers
             // TODO: 10.11有时特殊剧集名如【再与天比高SUPER双语版.E04（国语有删减）.mp4】不传ParentIndexNumber，原因不明
             if (info.ParentIndexNumber is null && !isVirtualSeason && !string.IsNullOrEmpty(seasonFolderPath))
             {
-                var guestSeasonNumber = this._libraryManager.GetSeasonNumberFromPath(seasonFolderPath, null);
+                var guestSeasonNumber = this._libraryManager.GetSeasonNumberFromPath(seasonFolderPath);
                 if (!guestSeasonNumber.HasValue)
                 {
                     guestSeasonNumber = this.GuessSeasonNumberByDirectoryName(seasonFolderPath);
