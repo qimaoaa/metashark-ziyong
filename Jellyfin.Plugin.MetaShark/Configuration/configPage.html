@@ -123,6 +123,14 @@
                             <div class="fieldDescription">勾选后，刮削会变慢</div>
                         </div>
                         <div class="checkboxContainer checkboxContainer-withDescription">
+                            <label class="emby-checkbox-label" for="EnableTmdbTags">
+                                <input id="EnableTmdbTags" name="EnableTmdbTags" type="checkbox"
+                                    is="emby-checkbox" />
+                                <span>从TheMovieDb获取标签</span>
+                            </label>
+                            <div class="fieldDescription">勾选后会写入 TMDb 关键词标签</div>
+                        </div>
+                        <div class="checkboxContainer checkboxContainer-withDescription">
                             <label class="emby-checkbox-label" for="EnableTmdbAdult">
                                 <input id="EnableTmdbAdult" name="EnableTmdbAdult" type="checkbox"
                                     is="emby-checkbox" />
@@ -217,6 +225,7 @@
                         document.querySelector('#EnableTmdbAdult').checked = config.EnableTmdbAdult;
                         document.querySelector('#EnableTmdbCollection').checked = config.EnableTmdbCollection;
                         document.querySelector('#EnableTmdbOfficialRating').checked = config.EnableTmdbOfficialRating;
+                        document.querySelector('#EnableTmdbTags').checked = config.EnableTmdbTags;
                         document.querySelector('#TmdbApiKey').value = config.TmdbApiKey;
                         lastEpisodeGroupMap = config.TmdbEpisodeGroupMap || '';
                         document.querySelector('#TmdbEpisodeGroupMap').value = lastEpisodeGroupMap;
@@ -251,6 +260,7 @@
                         config.EnableTmdbAdult = document.querySelector('#EnableTmdbAdult').checked;
                         config.EnableTmdbCollection = document.querySelector('#EnableTmdbCollection').checked;
                         config.EnableTmdbOfficialRating = document.querySelector('#EnableTmdbOfficialRating').checked;
+                        config.EnableTmdbTags = document.querySelector('#EnableTmdbTags').checked;
                         config.TmdbApiKey = document.querySelector('#TmdbApiKey').value;
                         config.TmdbEpisodeGroupMap = document.querySelector('#TmdbEpisodeGroupMap').value;
                         config.TmdbHost = document.querySelector('#TmdbHost').value;
