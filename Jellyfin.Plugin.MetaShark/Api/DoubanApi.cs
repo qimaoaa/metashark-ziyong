@@ -1022,8 +1022,21 @@ namespace Jellyfin.Plugin.MetaShark.Api
 
             lock (Lock)
             {
-                this.cookieContainer = new CookieContainer();
-                this.httpClientHandler.CookieContainer = this.cookieContainer;
+                var container = this.httpClientHandler.CookieContainer ?? this.cookieContainer ?? new CookieContainer();
+                try
+                {
+                    if (!ReferenceEquals(this.httpClientHandler.CookieContainer, container))
+                    {
+                        this.httpClientHandler.CookieContainer = container;
+                    }
+                }
+                catch (InvalidOperationException)
+                {
+                    // Handler already started; keep existing container to avoid failing config updates.
+                    container = this.httpClientHandler.CookieContainer ?? container;
+                }
+
+                this.cookieContainer = container;
                 if (!string.IsNullOrEmpty(configCookie))
                 {
                     var cookieList = configCookie.Split(';');
