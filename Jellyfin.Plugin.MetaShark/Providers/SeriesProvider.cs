@@ -311,7 +311,7 @@ namespace Jellyfin.Plugin.MetaShark.Providers
                 series.Genres = seriesResult.Genres.Select(i => i.Name).ToArray();
             }
 
-            if (seriesResult.Keywords?.Results != null)
+            if (Config.EnableTmdbTags && seriesResult.Keywords?.Results != null)
             {
                 for (var i = 0; i < seriesResult.Keywords.Results.Count; i++)
                 {

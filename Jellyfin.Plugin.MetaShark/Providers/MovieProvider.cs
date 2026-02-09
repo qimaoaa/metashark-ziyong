@@ -237,6 +237,15 @@ namespace Jellyfin.Plugin.MetaShark.Providers
                 Tagline = movieResult.Tagline,
                 ProductionLocations = movieResult.ProductionCountries.Select(pc => pc.Name).ToArray(),
             };
+
+            if (Config.EnableTmdbTags && movieResult.Keywords?.Keywords != null)
+            {
+                for (var i = 0; i < movieResult.Keywords.Keywords.Count; i++)
+                {
+                    movie.AddTag(movieResult.Keywords.Keywords[i].Name);
+                }
+            }
+
             result = new MetadataResult<Movie>
             {
                 QueriedById = true,
