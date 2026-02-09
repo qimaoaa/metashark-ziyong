@@ -319,6 +319,42 @@ namespace Jellyfin.Plugin.MetaShark.Api
             }
         }
 
+        public async Task<TvGroupCollection?> GetEpisodeGroupByIdAsync(string groupId, string? language, CancellationToken cancellationToken)
+        {
+            if (!this.IsEnable() || string.IsNullOrWhiteSpace(groupId))
+            {
+                return null;
+            }
+
+            var key = $"group-id-{groupId}-{language}";
+            if (_memoryCache.TryGetValue(key, out TvGroupCollection? group))
+            {
+                return group;
+            }
+
+            try
+            {
+                await EnsureClientConfigAsync().ConfigureAwait(false);
+
+                group = await _tmDbClient.GetTvEpisodeGroupsAsync(
+                    groupId,
+                    language: NormalizeLanguage(language),
+                    cancellationToken: cancellationToken).ConfigureAwait(false);
+
+                if (group is not null)
+                {
+                    _memoryCache.Set(key, group, TimeSpan.FromHours(CacheDurationInHours));
+                }
+
+                return group;
+            }
+            catch (Exception ex)
+            {
+                this._logger.LogError(ex, ex.Message);
+                return null;
+            }
+        }
+
         /// <summary>
         /// Gets a tv season from the TMDb API based on the tv show's TMDb id.
         /// </summary>

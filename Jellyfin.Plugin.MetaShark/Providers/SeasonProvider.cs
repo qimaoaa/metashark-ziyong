@@ -208,6 +208,24 @@ namespace Jellyfin.Plugin.MetaShark.Providers
                 return result;
             }
 
+            if (TmdbEpisodeGroupMapping.TryGetGroupId(config.TmdbEpisodeGroupMap, seriesTmdbId, out var groupId))
+            {
+                var group = await this._tmdbApi
+                    .GetEpisodeGroupByIdAsync(groupId, info.MetadataLanguage, cancellationToken)
+                    .ConfigureAwait(false);
+                var seasonGroup = group?.Groups.FirstOrDefault(g => g.Order == seasonNumber);
+                if (seasonGroup != null)
+                {
+                    result.Item = new Season
+                    {
+                        Name = seasonGroup.Name,
+                        IndexNumber = seasonNumber,
+                    };
+                    result.HasMetadata = true;
+                    return result;
+                }
+            }
+
             var seasonResult = await this._tmdbApi
                 .GetSeasonAsync(seriesTmdbId.ToInt(), seasonNumber ?? 0, info.MetadataLanguage, info.MetadataLanguage, cancellationToken)
                 .ConfigureAwait(false);

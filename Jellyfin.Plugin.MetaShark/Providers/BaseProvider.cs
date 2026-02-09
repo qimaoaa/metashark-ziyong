@@ -78,6 +78,35 @@ namespace Jellyfin.Plugin.MetaShark.Providers
 
         protected async Task<TMDbLib.Objects.Search.TvSeasonEpisode?> GetEpisodeAsync(int seriesTmdbId, int? seasonNumber, int? episodeNumber, string displayOrder, string? language, string? imageLanguages, CancellationToken cancellationToken)
         {
+            var seriesId = seriesTmdbId.ToString(CultureInfo.InvariantCulture);
+            if (TmdbEpisodeGroupMapping.TryGetGroupId(config.TmdbEpisodeGroupMap, seriesId, out var groupId))
+            {
+                var group = await this._tmdbApi
+                    .GetEpisodeGroupByIdAsync(groupId, language, cancellationToken)
+                    .ConfigureAwait(false);
+                if (group != null)
+                {
+                    var season = group.Groups.Find(s => s.Order == seasonNumber);
+                    // Episode order starts at 0
+                    var ep = season?.Episodes.Find(e => e.Order == episodeNumber - 1);
+                    if (ep is not null)
+                    {
+                        var result = await this._tmdbApi
+                            .GetSeasonAsync(seriesTmdbId, ep.SeasonNumber, language, imageLanguages, cancellationToken)
+                            .ConfigureAwait(false);
+                        if (result == null || result.Episodes == null)
+                        {
+                            return null;
+                        }
+                        if (ep.EpisodeNumber > result.Episodes.Count)
+                        {
+                            return null;
+                        }
+                        return result.Episodes[ep.EpisodeNumber - 1];
+                    }
+                }
+            }
+
             // 根据剧集组获取对应的剧集信息
             if (!string.IsNullOrWhiteSpace(displayOrder))
             {
