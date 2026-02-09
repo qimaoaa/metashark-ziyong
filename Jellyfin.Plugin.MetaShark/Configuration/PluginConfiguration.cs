@@ -85,6 +85,11 @@ public class PluginConfiguration : BasePluginConfiguration
     public bool EnableTmdbOfficialRating { get; set; } = true;
 
     /// <summary>
+    /// Gets or sets a value indicating whether 是否获取tmdb标签(关键词).
+    /// </summary>
+    public bool EnableTmdbTags { get; set; } = true;
+
+    /// <summary>
     /// Gets or sets tmdb api key.
     /// </summary>
     public string TmdbApiKey { get; set; } = string.Empty;

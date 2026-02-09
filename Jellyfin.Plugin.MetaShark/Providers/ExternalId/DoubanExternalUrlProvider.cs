@@ -15,7 +15,8 @@ namespace Jellyfin.Plugin.MetaShark.Providers.ExternalId
     /// <summary>
     /// External URLs for Douban.
     /// </summary>
-    public class DoubanExternalUrlProvider : IExternalUrlProvider
+    // Internal to avoid registering a second visible Douban provider entry.
+    internal class DoubanExternalUrlProvider : IExternalUrlProvider
     {
         /// <inheritdoc/>
         public string Name => BaseProvider.DoubanProviderName;

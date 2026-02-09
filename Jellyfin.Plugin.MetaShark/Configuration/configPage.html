@@ -123,6 +123,14 @@
                             <div class="fieldDescription">勾选后，刮削会变慢</div>
                         </div>
                         <div class="checkboxContainer checkboxContainer-withDescription">
+                            <label class="emby-checkbox-label" for="EnableTmdbTags">
+                                <input id="EnableTmdbTags" name="EnableTmdbTags" type="checkbox"
+                                    is="emby-checkbox" />
+                                <span>从TheMovieDb获取标签</span>
+                            </label>
+                            <div class="fieldDescription">勾选后会写入 TMDb 关键词标签</div>
+                        </div>
+                        <div class="checkboxContainer checkboxContainer-withDescription">
                             <label class="emby-checkbox-label" for="EnableTmdbAdult">
                                 <input id="EnableTmdbAdult" name="EnableTmdbAdult" type="checkbox"
                                     is="emby-checkbox" />
@@ -194,6 +202,8 @@
                 pluginUniqueId: '9A19103F-16F7-4668-BE54-9A1E7A4F7556'
             };
 
+            var lastEpisodeGroupMap = '';
+
             document.querySelector('#TemplateConfigPage')
                 .addEventListener('pageshow', function () {
                     console.log('metashark pageshow');
@@ -215,8 +225,10 @@
                         document.querySelector('#EnableTmdbAdult').checked = config.EnableTmdbAdult;
                         document.querySelector('#EnableTmdbCollection').checked = config.EnableTmdbCollection;
                         document.querySelector('#EnableTmdbOfficialRating').checked = config.EnableTmdbOfficialRating;
+                        document.querySelector('#EnableTmdbTags').checked = config.EnableTmdbTags;
                         document.querySelector('#TmdbApiKey').value = config.TmdbApiKey;
-                        document.querySelector('#TmdbEpisodeGroupMap').value = config.TmdbEpisodeGroupMap || '';
+                        lastEpisodeGroupMap = config.TmdbEpisodeGroupMap || '';
+                        document.querySelector('#TmdbEpisodeGroupMap').value = lastEpisodeGroupMap;
                         document.querySelector('#TmdbHost').value = config.TmdbHost;
 
                         document.querySelector('#TmdbProxyType').value = config.TmdbProxyType;
@@ -249,6 +261,7 @@
                         config.EnableTmdbAdult = document.querySelector('#EnableTmdbAdult').checked;
                         config.EnableTmdbCollection = document.querySelector('#EnableTmdbCollection').checked;
                         config.EnableTmdbOfficialRating = document.querySelector('#EnableTmdbOfficialRating').checked;
+                        config.EnableTmdbTags = document.querySelector('#EnableTmdbTags').checked;
                         config.TmdbApiKey = document.querySelector('#TmdbApiKey').value;
                         config.TmdbEpisodeGroupMap = document.querySelector('#TmdbEpisodeGroupMap').value;
                         config.TmdbHost = document.querySelector('#TmdbHost').value;
@@ -259,6 +272,8 @@
                             Dashboard.processPluginConfigurationUpdateResult(result);
 
                             checkDoubanLogin();
+                            refreshSeriesIfMappingChanged(lastEpisodeGroupMap, config.TmdbEpisodeGroupMap);
+                            lastEpisodeGroupMap = config.TmdbEpisodeGroupMap || '';
                         });
                     });
 
@@ -296,6 +311,26 @@
                         $('#login_msg').css("color", "green").text('(已生效)').show();
                     }
                 })
+            }
+
+            function refreshSeriesIfMappingChanged(oldMapping, newMapping) {
+                if ((oldMapping || '').trim() === (newMapping || '').trim()) {
+                    return;
+                }
+
+                Dashboard.showLoadingMsg();
+                $.ajax({
+                    type: 'POST',
+                    url: '/plugin/metashark/tmdb/refresh-series'
+                }).done(function (resp) {
+                    if (resp && resp.code === 1) {
+                        Dashboard.alert(resp.msg || '已刷新节目元数据');
+                    } else if (resp && resp.msg) {
+                        Dashboard.alert(resp.msg);
+                    }
+                }).always(function () {
+                    Dashboard.hideLoadingMsg();
+                });
             }
         </script>
     </div>
