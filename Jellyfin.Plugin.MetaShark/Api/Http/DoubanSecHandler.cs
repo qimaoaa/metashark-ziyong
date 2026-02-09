@@ -1,29 +1,38 @@
-using System;
-using System.Collections.Generic;
-using System.Net;
-using System.Net.Http;
-using System.Security.Cryptography;
-using System.Text;
-using System.Threading;
-using System.Threading.Tasks;
-using AngleSharp;
-using Microsoft.Extensions.Logging;
+// <copyright file="DoubanSecHandler.cs" company="PlaceholderCompany">
+// Copyright (c) PlaceholderCompany. All rights reserved.
+// </copyright>
 
 namespace Jellyfin.Plugin.MetaShark.Api
 {
+    using System;
+    using System.Collections.Generic;
+    using System.Globalization;
+    using System.Net;
+    using System.Net.Http;
+    using System.Security.Cryptography;
+    using System.Text;
+    using System.Threading;
+    using System.Threading.Tasks;
+    using AngleSharp;
+    using Microsoft.Extensions.Logging;
+
     // DelegatingHandler that detects Douban sec.douban.com challenge pages,
     // solves the SHA-512 nonce challenge and retries the original request once.
     public class DoubanSecHandler : DelegatingHandler
     {
-        private readonly ILogger _logger;
+        private static readonly Action<ILogger, string?, Exception?> LogChallengeFailure =
+            LoggerMessage.Define<string?>(LogLevel.Warning, new EventId(1, nameof(SendAsync)), "处理 douban 验证页面失败: {RequestUri}");
+
+        private readonly ILogger logger;
 
         public DoubanSecHandler(ILogger logger)
         {
-            _logger = logger;
+            this.logger = logger;
         }
 
         protected override async Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken)
         {
+            ArgumentNullException.ThrowIfNull(request);
             // Save original request target (before any redirects/rewrites by inner handlers)
             var originalRequestUri = request.RequestUri;
 
@@ -61,18 +70,21 @@ namespace Jellyfin.Plugin.MetaShark.Api
                         // Prefer form action if present; otherwise use current response request URI.
                         var formEl = doc.QuerySelector("form");
                         var action = formEl?.GetAttribute("action") ?? "/c";
+
                         // Resolve action to absolute URI when necessary
                         var postUri = new Uri("https://sec.douban.com" + action);
 
-                        var form = new List<KeyValuePair<string, string>>() {
+                        var form = new List<KeyValuePair<string, string>>()
+                        {
                             new KeyValuePair<string, string>("tok", tok),
                             new KeyValuePair<string, string>("cha", cha),
-                            new KeyValuePair<string, string>("sol", sol.ToString())
+                            new KeyValuePair<string, string>("sol", sol.ToString(CultureInfo.InvariantCulture)),
                         };
 
                         using (var req = new HttpRequestMessage(HttpMethod.Post, postUri))
                         {
                             req.Content = new FormUrlEncodedContent(form);
+
                             // set referrer to original request if available
                             if (request.RequestUri != null)
                             {
@@ -84,20 +96,24 @@ namespace Jellyfin.Plugin.MetaShark.Api
                         }
 
                         // Retry the original request once using the saved original target URI.
-                        var retry = await CloneHttpRequestMessageAsync(request, cancellationToken).ConfigureAwait(false);
+                        using var retry = await CloneHttpRequestMessageAsync(request, cancellationToken).ConfigureAwait(false);
                         retry.RequestUri = originalRequestUri ?? request.RequestUri;
-                    
+
                         return await base.SendAsync(retry, cancellationToken).ConfigureAwait(false);
                     }
                 }
             }
-            catch (OperationCanceledException)
+            catch (TaskCanceledException ex) when (!cancellationToken.IsCancellationRequested)
+            {
+                LogChallengeFailure(this.logger, originalRequestUri?.ToString(), ex);
+            }
+            catch (HttpRequestException ex)
+            {
+                LogChallengeFailure(this.logger, originalRequestUri?.ToString(), ex);
+            }
+            catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
             {
                 throw;
-            }
-            catch (Exception ex)
-            {
-                _logger?.LogWarning(ex, "处理 douban 验证页面失败: {0}", originalRequestUri);
             }
 
             return response;
@@ -105,20 +121,18 @@ namespace Jellyfin.Plugin.MetaShark.Api
 
         private static string ComputeSha512Hex(string input)
         {
-            using (var sha = SHA512.Create())
+            var bytes = Encoding.UTF8.GetBytes(input);
+            var hash = SHA512.HashData(bytes);
+            var sb = new StringBuilder(hash.Length * 2);
+            foreach (var b in hash)
             {
-                var bytes = Encoding.UTF8.GetBytes(input);
-                var hash = sha.ComputeHash(bytes);
-                var sb = new StringBuilder(hash.Length * 2);
-                foreach (var b in hash)
-                {
-                    sb.Append(b.ToString("x2"));
-                }
-                return sb.ToString();
+                sb.Append(b.ToString("x2", CultureInfo.InvariantCulture));
             }
+
+            return sb.ToString();
         }
 
-        private async Task<long> SolveNonceAsync(string data, int difficulty, CancellationToken cancellationToken)
+        private static async Task<long> SolveNonceAsync(string data, int difficulty, CancellationToken cancellationToken)
         {
             var targetPrefix = new string('0', Math.Max(0, difficulty));
             long nonce = 0;
@@ -126,11 +140,12 @@ namespace Jellyfin.Plugin.MetaShark.Api
             {
                 cancellationToken.ThrowIfCancellationRequested();
                 nonce++;
-                var hash = ComputeSha512Hex(data + nonce.ToString());
+                var hash = ComputeSha512Hex(data + nonce.ToString(CultureInfo.InvariantCulture));
                 if (hash.StartsWith(targetPrefix, StringComparison.Ordinal))
                 {
                     return nonce;
                 }
+
                 if ((nonce & 0xFFF) == 0)
                 {
                     await Task.Yield();
@@ -147,11 +162,13 @@ namespace Jellyfin.Plugin.MetaShark.Api
             {
                 var ms = await req.Content.ReadAsByteArrayAsync(cancellationToken).ConfigureAwait(false);
                 var content = new ByteArrayContent(ms);
+
                 // copy content headers
                 foreach (var h in req.Content.Headers)
                 {
                     content.Headers.TryAddWithoutValidation(h.Key, h.Value);
                 }
+
                 clone.Content = content;
             }
 
@@ -166,7 +183,6 @@ namespace Jellyfin.Plugin.MetaShark.Api
             // {
             //     clone.Options.Set(prop.Key, prop.Value);
             // }
-
             return clone;
         }
     }

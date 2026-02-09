@@ -1,11 +1,15 @@
-using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
+// <copyright file="Utils.cs" company="PlaceholderCompany">
+// Copyright (c) PlaceholderCompany. All rights reserved.
+// </copyright>
 
 namespace Jellyfin.Plugin.MetaShark.Core
 {
+    using System;
+    using System.Collections.Generic;
+    using System.Linq;
+    using System.Text;
+    using System.Threading.Tasks;
+
     public static class Utils
     {
         public static DateTime UnixTimeStampToDateTime(long unixTimeStamp)
@@ -17,26 +21,31 @@ namespace Jellyfin.Plugin.MetaShark.Core
         }
 
         /// <summary>
-        /// 转换数字
+        /// 转换数字.
         /// </summary>
+        /// <returns></returns>
         public static int? ChineseNumberToInt(string str)
         {
-            if (string.IsNullOrEmpty(str)) return null;
+            if (string.IsNullOrEmpty(str))
+            {
+                return null;
+            }
 
-            var chineseNumberMap = new Dictionary<Char, Char>() {
-                {'一', '1'},
-                {'二', '2'},
-                {'三', '3'},
-                {'四', '4'},
-                {'五', '5'},
-                {'六', '6'},
-                {'七', '7'},
-                {'八', '8'},
-                {'九', '9'},
-                {'零', '0'},
+            var chineseNumberMap = new Dictionary<char, char>()
+            {
+                { '一', '1' },
+                { '二', '2' },
+                { '三', '3' },
+                { '四', '4' },
+                { '五', '5' },
+                { '六', '6' },
+                { '七', '7' },
+                { '八', '8' },
+                { '九', '9' },
+                { '零', '0' },
             };
 
-            var numberArr = str.ToCharArray().Select(x => chineseNumberMap.ContainsKey(x) ? chineseNumberMap[x] : x).ToArray();
+            var numberArr = str.ToCharArray().Select(x => chineseNumberMap.TryGetValue(x, out var mapped) ? mapped : x).ToArray();
             var newNumberStr = new string(numberArr);
             if (int.TryParse(new string(numberArr), out var number))
             {
@@ -47,26 +56,31 @@ namespace Jellyfin.Plugin.MetaShark.Core
         }
 
         /// <summary>
-        /// 转换中文数字
+        /// 转换中文数字.
         /// </summary>
+        /// <returns></returns>
         public static string? ToChineseNumber(int? number)
         {
-            if (number is null) return null;
+            if (number is null)
+            {
+                return null;
+            }
 
-            var chineseNumberMap = new Dictionary<Char, Char>() {
-                {'1','一'},
-                {'2','二'},
-                {'3','三'},
-                {'4','四'},
-                {'5','五'},
-                {'6','六'},
-                {'7','七'},
-                {'8','八'},
-                {'9','九'},
-                {'0','零'},
+            var chineseNumberMap = new Dictionary<char, char>()
+            {
+                { '1', '一' },
+                { '2', '二' },
+                { '3', '三' },
+                { '4', '四' },
+                { '5', '五' },
+                { '6', '六' },
+                { '7', '七' },
+                { '8', '八' },
+                { '9', '九' },
+                { '0', '零' },
             };
 
-            var numberArr = $"{number}".ToCharArray().Select(x => chineseNumberMap.ContainsKey(x) ? chineseNumberMap[x] : x).ToArray();
+            var numberArr = $"{number}".ToCharArray().Select(x => chineseNumberMap.TryGetValue(x, out var mapped) ? mapped : x).ToArray();
             return new string(numberArr);
         }
     }

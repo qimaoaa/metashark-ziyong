@@ -1,4 +1,12 @@
-/*
+// <copyright file="JaroWinkler.cs" company="PlaceholderCompany">
+// Copyright (c) PlaceholderCompany. All rights reserved.
+// </copyright>
+
+// ReSharper disable SuggestVarOrType_Elsewhere
+// ReSharper disable LoopCanBeConvertedToQuery
+namespace StringMetric
+{
+    /*
  * The MIT License
  *
  * Copyright 2016 feature[23]
@@ -22,48 +30,46 @@
  * THE SOFTWARE.
  */
 
-using System;
-using System.Linq;
-// ReSharper disable SuggestVarOrType_Elsewhere
-// ReSharper disable LoopCanBeConvertedToQuery
+    using System;
+    using System.Linq;
 
-namespace StringMetric
-{
-    /// The Jaro–Winkler distance metric is designed and best suited for short
-    /// strings such as person names, and to detect typos; it is (roughly) a
-    /// variation of Damerau-Levenshtein, where the substitution of 2 close
-    /// characters is considered less important then the substitution of 2 characters
-    /// that a far from each other.
-    /// Jaro-Winkler was developed in the area of record linkage (duplicate
-    /// detection) (Winkler, 1990). It returns a value in the interval [0.0, 1.0].
-    /// The distance is computed as 1 - Jaro-Winkler similarity.
+    // The Jaro–Winkler distance metric is designed and best suited for short
+    // strings such as person names, and to detect typos; it is (roughly) a
+    // variation of Damerau-Levenshtein, where the substitution of 2 close
+    // characters is considered less important then the substitution of 2 characters
+    // that a far from each other.
+    // Jaro-Winkler was developed in the area of record linkage (duplicate
+    // detection) (Winkler, 1990). It returns a value in the interval [0.0, 1.0].
+    // The distance is computed as 1 - Jaro-Winkler similarity.
     public class JaroWinkler
     {
-        private const double DEFAULT_THRESHOLD = 0.7;
+        private const double DEFAULTTHRESHOLD = 0.7;
         private const int THREE = 3;
-        private const double JW_COEF = 0.1;
+        private const double JWCOEF = 0.1;
 
         /// <summary>
-        /// The current value of the threshold used for adding the Winkler bonus. The default value is 0.7.
+        /// Gets the current value of the threshold used for adding the Winkler bonus. The default value is 0.7.
         /// </summary>
         private double Threshold { get; }
 
         /// <summary>
-        /// Creates a new instance with default threshold (0.7)
+        /// Initializes a new instance of the <see cref="JaroWinkler"/> class.
+        /// Creates a new instance with default threshold (0.7).
         /// </summary>
         public JaroWinkler()
         {
-            Threshold = DEFAULT_THRESHOLD;
+            this.Threshold = DEFAULTTHRESHOLD;
         }
 
         /// <summary>
+        /// Initializes a new instance of the <see cref="JaroWinkler"/> class.
         /// Creates a new instance with given threshold to determine when Winkler bonus should
         /// be used. Set threshold to a negative value to get the Jaro distance.
         /// </summary>
         /// <param name="threshold"></param>
         public JaroWinkler(double threshold)
         {
-            Threshold = threshold;
+            this.Threshold = threshold;
         }
 
         /// <summary>
@@ -71,21 +77,14 @@ namespace StringMetric
         /// </summary>
         /// <param name="s1">The first string to compare.</param>
         /// <param name="s2">The second string to compare.</param>
-        /// <returns>The Jaro-Winkler similarity in the range [0, 1]</returns>
+        /// <returns>The Jaro-Winkler similarity in the range [0, 1].</returns>
         /// <exception cref="ArgumentNullException">If s1 or s2 is null.</exception>
         public double Similarity(string s1, string s2)
         {
-            if (s1 == null)
-            {
-                throw new ArgumentNullException(nameof(s1));
-            }
+            ArgumentNullException.ThrowIfNull(s1);
+            ArgumentNullException.ThrowIfNull(s2);
 
-            if (s2 == null)
-            {
-                throw new ArgumentNullException(nameof(s2));
-            }
-
-            if (s1.Equals(s2))
+            if (string.Equals(s1, s2, StringComparison.Ordinal))
             {
                 return 1f;
             }
@@ -96,14 +95,16 @@ namespace StringMetric
             {
                 return 0f;
             }
-            double j = ((m / s1.Length + m / s2.Length + (m - mtp[1]) / m))
+
+            double j = ((m / s1.Length) + (m / s2.Length) + ((m - mtp[1]) / m))
                     / THREE;
             double jw = j;
 
-            if (j > Threshold)
+            if (j > this.Threshold)
             {
-                jw = j + Math.Min(JW_COEF, 1.0 / mtp[THREE]) * mtp[2] * (1 - j);
+                jw = j + (Math.Min(JWCOEF, 1.0 / mtp[THREE]) * mtp[2] * (1 - j));
             }
+
             return jw;
         }
 
@@ -112,10 +113,10 @@ namespace StringMetric
         /// </summary>
         /// <param name="s1">The first string to compare.</param>
         /// <param name="s2">The second string to compare.</param>
-        /// <returns>1 - similarity</returns>
+        /// <returns>1 - similarity.</returns>
         /// <exception cref="ArgumentNullException">If s1 or s2 is null.</exception>
         public double Distance(string s1, string s2)
-            => 1.0 - Similarity(s1, s2);
+            => 1.0 - this.Similarity(s1, s2);
 
         private static int[] Matches(string s1, string s2)
         {
@@ -130,10 +131,11 @@ namespace StringMetric
                 max = s2;
                 min = s1;
             }
-            int range = Math.Max(max.Length / 2 - 1, 0);
 
-            //int[] matchIndexes = new int[min.Length];
-            //Arrays.fill(matchIndexes, -1);
+            int range = Math.Max((max.Length / 2) - 1, 0);
+
+            // int[] matchIndexes = new int[min.Length];
+            // Arrays.fill(matchIndexes, -1);
             int[] match_indexes = Enumerable.Repeat(-1, min.Length).ToArray();
 
             bool[] match_flags = new bool[max.Length];
@@ -153,6 +155,7 @@ namespace StringMetric
                     }
                 }
             }
+
             char[] ms1 = new char[matches];
             char[] ms2 = new char[matches];
             for (int i = 0, si = 0; i < min.Length; i++)
@@ -163,6 +166,7 @@ namespace StringMetric
                     si++;
                 }
             }
+
             for (int i = 0, si = 0; i < max.Length; i++)
             {
                 if (match_flags[i])
@@ -171,6 +175,7 @@ namespace StringMetric
                     si++;
                 }
             }
+
             int transpositions = 0;
             for (int mi = 0; mi < ms1.Length; mi++)
             {
@@ -179,6 +184,7 @@ namespace StringMetric
                     transpositions++;
                 }
             }
+
             int prefix = 0;
             for (int mi = 0; mi < min.Length; mi++)
             {
@@ -191,6 +197,7 @@ namespace StringMetric
                     break;
                 }
             }
+
             return new[] { matches, transpositions / 2, prefix, max.Length };
         }
     }

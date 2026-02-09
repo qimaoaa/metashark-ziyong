@@ -1,10 +1,14 @@
-using MediaBrowser.Controller.Entities;
-using MediaBrowser.Controller.Providers;
-using MediaBrowser.Model.Entities;
-using MediaBrowser.Model.Providers;
+// <copyright file="DoubanPersonExternalId.cs" company="PlaceholderCompany">
+// Copyright (c) PlaceholderCompany. All rights reserved.
+// </copyright>
 
 namespace Jellyfin.Plugin.MetaShark.Providers.ExternalId
 {
+    using MediaBrowser.Controller.Entities;
+    using MediaBrowser.Controller.Providers;
+    using MediaBrowser.Model.Entities;
+    using MediaBrowser.Model.Providers;
+
     /// <inheritdoc />
     public class DoubanPersonExternalId : IExternalId
     {

@@ -1,16 +1,22 @@
-using System;
-using System.Collections.Generic;
-using System.Linq;
-using MediaBrowser.Model.Providers;
+// <copyright file="EnumerableExtensions.cs" company="PlaceholderCompany">
+// Copyright (c) PlaceholderCompany. All rights reserved.
+// </copyright>
 
 namespace Jellyfin.Plugin.MetaShark.Providers
 {
+    using System;
+    using System.Collections.Generic;
+    using System.Linq;
+    using MediaBrowser.Model.Providers;
+
     public static class EnumerableExtensions
     {
         private const int MaxPriority = 99;
 
         public static IEnumerable<RemoteImageInfo> OrderByLanguageDescending(this IEnumerable<RemoteImageInfo> remoteImageInfos, params string[] requestedLanguages)
         {
+            ArgumentNullException.ThrowIfNull(remoteImageInfos);
+            ArgumentNullException.ThrowIfNull(requestedLanguages);
             if (requestedLanguages.Length <= 0)
             {
                 requestedLanguages = new[] { "en" };
@@ -23,10 +29,11 @@ namespace Jellyfin.Plugin.MetaShark.Providers
                 {
                     continue;
                 }
+
                 requestedLanguagePriorityMap.Add(NormalizeLanguage(requestedLanguages[i]), MaxPriority - i);
             }
 
-            return remoteImageInfos.OrderByDescending(delegate (RemoteImageInfo i)
+            return remoteImageInfos.OrderByDescending(delegate(RemoteImageInfo i)
             {
                 if (string.IsNullOrEmpty(i.Language))
                 {
@@ -49,7 +56,7 @@ namespace Jellyfin.Plugin.MetaShark.Providers
                 return language;
             }
 
-            return language.Split('-')[0].ToLower();
+            return language.Split('-')[0].ToUpperInvariant();
         }
     }
 }

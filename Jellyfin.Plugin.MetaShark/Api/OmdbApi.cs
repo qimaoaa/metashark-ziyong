@@ -1,68 +1,83 @@
-﻿using Jellyfin.Plugin.MetaShark.Model;
-using Microsoft.Extensions.Caching.Memory;
-using Microsoft.Extensions.Logging;
-using System;
-using System.Net.Http;
-using System.Net.Http.Json;
-using System.Threading;
-using System.Threading.Tasks;
+﻿// <copyright file="OmdbApi.cs" company="PlaceholderCompany">
+// Copyright (c) PlaceholderCompany. All rights reserved.
+// </copyright>
 
 namespace Jellyfin.Plugin.MetaShark.Api
 {
+    using System;
+    using System.Net.Http;
+    using System.Net.Http.Json;
+    using System.Threading;
+    using System.Threading.Tasks;
+    using Jellyfin.Plugin.MetaShark.Model;
+    using Microsoft.Extensions.Caching.Memory;
+    using Microsoft.Extensions.Logging;
+
     public class OmdbApi : IDisposable
     {
-        public const string DEFAULT_API_KEY = "2c9d9507";
-        private readonly ILogger<OmdbApi> _logger;
-        private readonly IMemoryCache _memoryCache;
+        public const string DEFAULTAPIKEY = "2c9d9507";
+        private static readonly Action<ILogger, string, Exception?> LogGetByImdbError =
+            LoggerMessage.Define<string>(LogLevel.Error, new EventId(1, nameof(GetByImdbID)), "GetByImdbID error. id: {ImdbId}");
+        private readonly ILogger<OmdbApi> logger;
+        private readonly MemoryCache memoryCache;
         private readonly HttpClient httpClient;
 
         public OmdbApi(ILoggerFactory loggerFactory)
         {
-            _logger = loggerFactory.CreateLogger<OmdbApi>();
-            _memoryCache = new MemoryCache(new MemoryCacheOptions());
-            httpClient = new HttpClient();
-            httpClient.Timeout = TimeSpan.FromSeconds(5);
+            this.logger = loggerFactory.CreateLogger<OmdbApi>();
+            this.memoryCache = new MemoryCache(new MemoryCacheOptions());
+            this.httpClient = new HttpClient();
+            this.httpClient.Timeout = TimeSpan.FromSeconds(5);
         }
 
         /// <summary>
-        /// 通过imdb获取信息（会返回最新的imdb id）
+        /// 通过imdb获取信息（会返回最新的imdb id）.
         /// </summary>
-        /// <param name="id">imdb id</param>
+        /// <param name="id">imdb id.</param>
         /// <param name="cancellationToken"></param>
-        /// <returns></returns>
+        /// <returns><placeholder>A <see cref="Task"/> representing the asynchronous operation.</placeholder></returns>
         public async Task<OmdbItem?> GetByImdbID(string id, CancellationToken cancellationToken)
         {
-            if (!this.IsEnable())
+            if (!IsEnable())
             {
                 return null;
             }
 
             var cacheKey = $"GetByImdbID_{id}";
             var expiredOption = new MemoryCacheEntryOptions() { AbsoluteExpirationRelativeToNow = TimeSpan.FromMinutes(30) };
-            if (this._memoryCache.TryGetValue<OmdbItem?>(cacheKey, out var item))
+            if (this.memoryCache.TryGetValue<OmdbItem?>(cacheKey, out var item))
             {
                 return item;
             }
 
             try
             {
-                var url = $"https://www.omdbapi.com/?i={id}&apikey={DEFAULT_API_KEY}";
+                var url = new Uri($"https://www.omdbapi.com/?i={id}&apikey={DEFAULTAPIKEY}");
                 item = await this.httpClient.GetFromJsonAsync<OmdbItem>(url, cancellationToken).ConfigureAwait(false);
-                _memoryCache.Set(cacheKey, item, expiredOption);
+                this.memoryCache.Set(cacheKey, item, expiredOption);
                 return item;
             }
-            catch (Exception ex)
+            catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
             {
-                this._logger.LogError(ex, "GetByImdbID error. id: {0}", id);
-                _memoryCache.Set<OmdbItem?>(cacheKey, null, expiredOption);
+                throw;
+            }
+            catch (HttpRequestException ex)
+            {
+                LogGetByImdbError(this.logger, id, ex);
+                this.memoryCache.Set<OmdbItem?>(cacheKey, null, expiredOption);
+                return null;
+            }
+            catch (TaskCanceledException ex)
+            {
+                LogGetByImdbError(this.logger, id, ex);
+                this.memoryCache.Set<OmdbItem?>(cacheKey, null, expiredOption);
                 return null;
             }
         }
 
-
         public void Dispose()
         {
-            Dispose(true);
+            this.Dispose(true);
             GC.SuppressFinalize(this);
         }
 
@@ -70,11 +85,12 @@ namespace Jellyfin.Plugin.MetaShark.Api
         {
             if (disposing)
             {
-                _memoryCache.Dispose();
+                this.memoryCache.Dispose();
+                this.httpClient.Dispose();
             }
         }
 
-        private bool IsEnable()
+        private static bool IsEnable()
         {
             return Plugin.Instance?.Configuration.EnableTmdb ?? true;
         }

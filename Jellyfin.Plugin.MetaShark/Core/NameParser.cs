@@ -1,32 +1,36 @@
-using System;
-using System.Collections.Generic;
-using System.IO;
-using System.Linq;
-using System.Text;
-using System.Text.RegularExpressions;
-using System.Threading.Tasks;
-using Emby.Naming.TV;
-using Jellyfin.Plugin.MetaShark.Model;
+// <copyright file="NameParser.cs" company="PlaceholderCompany">
+// Copyright (c) PlaceholderCompany. All rights reserved.
+// </copyright>
 
 namespace Jellyfin.Plugin.MetaShark.Core
 {
+    using System;
+    using System.Collections.Generic;
+    using System.IO;
+    using System.Linq;
+    using System.Text;
+    using System.Text.RegularExpressions;
+    using System.Threading.Tasks;
+    using Emby.Naming.TV;
+    using Jellyfin.Plugin.MetaShark.Model;
+
     public static class NameParser
     {
-        private static readonly Regex yearReg = new Regex(@"[12][890][0-9][0-9]", RegexOptions.Compiled);
-        private static readonly Regex seasonSuffixReg = new Regex(@"[ .]S\d{1,2}$", RegexOptions.Compiled);
-        private static readonly Regex unusedReg = new Regex(@"\[.+?\]|\(.+?\)|【.+?】", RegexOptions.Compiled);
+        private static readonly Regex YearReg = new Regex(@"[12][890][0-9][0-9]", RegexOptions.Compiled);
+        private static readonly Regex SeasonSuffixReg = new Regex(@"[ .]S\d{1,2}$", RegexOptions.Compiled);
+        private static readonly Regex UnusedReg = new Regex(@"\[.+?\]|\(.+?\)|【.+?】", RegexOptions.Compiled);
 
-        private static readonly Regex fixSeasonNumberReg = new Regex(@"(\[|\.)S(\d{1,2})(\]|\.)", RegexOptions.Compiled | RegexOptions.IgnoreCase);
+        private static readonly Regex FixSeasonNumberReg = new Regex(@"(\[|\.)S(\d{1,2})(\]|\.)", RegexOptions.Compiled | RegexOptions.IgnoreCase);
 
-        private static readonly Regex startWithHyphenCharReg = new Regex(@"^[-～~]", RegexOptions.Compiled);
+        private static readonly Regex StartWithHyphenCharReg = new Regex(@"^[-～~]", RegexOptions.Compiled);
 
-        private static readonly Regex chineseIndexNumberReg = new Regex(@"第\s*?([0-9零一二三四五六七八九]+?)\s*?(集|章|话|話|期)", RegexOptions.Compiled);
+        private static readonly Regex ChineseIndexNumberReg = new Regex(@"第\s*?([0-9零一二三四五六七八九]+?)\s*?(集|章|话|話|期)", RegexOptions.Compiled);
 
-        private static readonly Regex normalizeNameReg = new Regex(@"第\s*?([0-9零一二三四五六七八九]+?)\s*?(集|章|话|話|期)", RegexOptions.Compiled);
+        private static readonly Regex NormalizeNameReg = new Regex(@"第\s*?([0-9零一二三四五六七八九]+?)\s*?(集|章|话|話|期)", RegexOptions.Compiled);
 
-        private static readonly Regex specialIndexNumberReg = new Regex(@"ep(\d{1,2})", RegexOptions.Compiled | RegexOptions.IgnoreCase);
+        private static readonly Regex SpecialIndexNumberReg = new Regex(@"ep(\d{1,2})", RegexOptions.Compiled | RegexOptions.IgnoreCase);
 
-        private static readonly Regex resolutionReg = new Regex(@"\d{3,4}x\d{3,4}", RegexOptions.Compiled | RegexOptions.IgnoreCase);
+        private static readonly Regex ResolutionReg = new Regex(@"\d{3,4}x\d{3,4}", RegexOptions.Compiled | RegexOptions.IgnoreCase);
 
         public static ParseNameResult Parse(string fileName, bool isEpisode = false)
         {
@@ -47,7 +51,7 @@ namespace Jellyfin.Plugin.MetaShark.Core
                         {
                             var firstString = item.Value.Substring(0, firstSpaceIndex);
                             var lastString = item.Value.Substring(firstSpaceIndex + 1);
-                            if (firstString.HasChinese() && !lastString.HasChinese() && !startWithHyphenCharReg.IsMatch(lastString))
+                            if (firstString.HasChinese() && !lastString.HasChinese() && !StartWithHyphenCharReg.IsMatch(lastString))
                             {
                                 parseResult.ChineseName = CleanName(firstString);
                                 parseResult.Name = CleanName(lastString);
@@ -61,6 +65,7 @@ namespace Jellyfin.Plugin.MetaShark.Core
                         {
                             parseResult.Name = CleanName(item.Value);
                         }
+
                         break;
                     case AnitomySharp.Element.ElementCategory.ElementEpisodeTitle:
                         parseResult.EpisodeName = item.Value;
@@ -71,6 +76,7 @@ namespace Jellyfin.Plugin.MetaShark.Core
                         {
                             parseResult.ParentIndexNumber = seasonNumber;
                         }
+
                         break;
                     case AnitomySharp.Element.ElementCategory.ElementEpisodeNumber:
                         var year = ParseYear(item.Value);
@@ -86,6 +92,7 @@ namespace Jellyfin.Plugin.MetaShark.Core
                                 parseResult.IndexNumber = episodeNumber;
                             }
                         }
+
                         break;
                     case AnitomySharp.Element.ElementCategory.ElementAnimeType:
                         parseResult.AnimeType = item.Value;
@@ -101,7 +108,7 @@ namespace Jellyfin.Plugin.MetaShark.Core
             // 修正动画季信息特殊情况，格式：[SXX]
             if (!parseResult.ParentIndexNumber.HasValue && isAnime)
             {
-                var match = fixSeasonNumberReg.Match(fileName);
+                var match = FixSeasonNumberReg.Match(fileName);
                 if (match.Success && match.Groups.Count > 2)
                 {
                     parseResult.ParentIndexNumber = match.Groups[2].Value.ToInt();
@@ -160,21 +167,22 @@ namespace Jellyfin.Plugin.MetaShark.Core
         private static string CleanName(string name)
         {
             // 电视剧名称后紧跟季信息时，会附加到名称中，需要去掉
-            name = seasonSuffixReg.Replace(name, string.Empty);
+            name = SeasonSuffixReg.Replace(name, string.Empty);
 
             // 删除多余的[]/()附加信息
-            name = unusedReg.Replace(name, string.Empty);
+            name = UnusedReg.Replace(name, string.Empty);
 
-            return name.Replace(".", " ").Trim();
+            return name.Replace(".", " ", StringComparison.Ordinal).Trim();
         }
 
         /// <summary>
-        /// emby原始电影解析
+        /// emby原始电影解析.
         /// </summary>
+        /// <returns></returns>
         public static ParseNameResult ParseMovieByDefault(string fileName)
         {
             // 默认解析器会错误把分辨率当年份，先删除
-            fileName = resolutionReg.Replace(fileName, "");
+            fileName = ResolutionReg.Replace(fileName, string.Empty);
 
             var parseResult = new ParseNameResult();
             var nameOptions = new Emby.Naming.Common.NamingOptions();
@@ -189,12 +197,14 @@ namespace Jellyfin.Plugin.MetaShark.Core
                 parseResult.Name = CleanName(result.Name);
                 parseResult.Year = result.Year;
             }
+
             return parseResult;
         }
 
         /// <summary>
-        /// emby原始剧集解析
+        /// emby原始剧集解析.
         /// </summary>
+        /// <returns></returns>
         public static EpisodePathParserResult ParseEpisodeByDefault(string fileName)
         {
             // EpisodePathParser需要路径信息， 这里添加一个分隔符模拟路径
@@ -204,10 +214,9 @@ namespace Jellyfin.Plugin.MetaShark.Core
                 .Parse(path, false);
         }
 
-
         private static int ParseYear(string val)
         {
-            var match = yearReg.Match(val);
+            var match = YearReg.Match(val);
             if (match.Success && match.Groups.Count > 0)
             {
                 return match.Groups[0].Value.ToInt();
@@ -219,14 +228,14 @@ namespace Jellyfin.Plugin.MetaShark.Core
         private static string NormalizeFileName(string fileName)
         {
             // 去掉中文集数之间的空格（要不然Anitomy解析不正确）
-            fileName = normalizeNameReg.Replace(fileName, m => m.Value.Replace(" ", ""));
+            fileName = NormalizeNameReg.Replace(fileName, m => m.Value.Replace(" ", string.Empty, StringComparison.Ordinal));
 
             return fileName;
         }
 
         private static int? ParseChineseOrSpecialIndexNumber(string fileName)
         {
-            var match = chineseIndexNumberReg.Match(fileName);
+            var match = ChineseIndexNumberReg.Match(fileName);
             if (match.Success && match.Groups.Count > 1)
             {
                 if (int.TryParse(match.Groups[1].Value, out var indexNumber))
@@ -242,7 +251,7 @@ namespace Jellyfin.Plugin.MetaShark.Core
             }
             else
             {
-                match = specialIndexNumberReg.Match(fileName);
+                match = SpecialIndexNumberReg.Match(fileName);
                 if (match.Success && match.Groups.Count > 1)
                 {
                     if (int.TryParse(match.Groups[1].Value, out var indexNumber))
@@ -252,25 +261,28 @@ namespace Jellyfin.Plugin.MetaShark.Core
                 }
             }
 
-
             return null;
         }
 
         public static bool IsSpecialDirectory(string path, bool isDirectory = false)
         {
-            var folder = Path.GetFileName(Path.GetDirectoryName(path))?.ToUpper() ?? string.Empty;
-            if (isDirectory) {
-                folder = Path.GetFileName(path)?.ToUpper() ?? string.Empty;
+            var folder = Path.GetFileName(Path.GetDirectoryName(path))?.ToUpperInvariant() ?? string.Empty;
+            if (isDirectory)
+            {
+                folder = Path.GetFileName(path)?.ToUpperInvariant() ?? string.Empty;
             }
-            return folder == "SP" || folder == "SPS" || folder == "SPECIALS" || folder.Contains("特典");
+
+            return folder == "SP" || folder == "SPS" || folder == "SPECIALS" || folder.Contains("特典", StringComparison.Ordinal);
         }
 
         public static bool IsExtraDirectory(string path, bool isDirectory = false)
         {
-            var folder = Path.GetFileName(Path.GetDirectoryName(path))?.ToUpper() ?? string.Empty;
-            if (isDirectory) {
-                folder = Path.GetFileName(path)?.ToUpper() ?? string.Empty;
+            var folder = Path.GetFileName(Path.GetDirectoryName(path))?.ToUpperInvariant() ?? string.Empty;
+            if (isDirectory)
+            {
+                folder = Path.GetFileName(path)?.ToUpperInvariant() ?? string.Empty;
             }
+
             return folder == "EXTRA"
             || folder == "MENU"
             || folder == "MENUS"
@@ -278,11 +290,10 @@ namespace Jellyfin.Plugin.MetaShark.Core
             || folder == "PV&CM"
             || folder == "CM"
             || folder == "BONUS"
-            || folder.Contains("OPED")
-            || folder.Contains("NCED")
-            || folder.Contains("花絮");
+            || folder.Contains("OPED", StringComparison.Ordinal)
+            || folder.Contains("NCED", StringComparison.Ordinal)
+            || folder.Contains("花絮", StringComparison.Ordinal);
         }
-
 
         // 判断是否为动漫
         // https://github.com/jxxghp/nas-tools/blob/f549c924558fd49e183333285bc6a804af1a2cb7/app/media/meta/metainfo.py#L51

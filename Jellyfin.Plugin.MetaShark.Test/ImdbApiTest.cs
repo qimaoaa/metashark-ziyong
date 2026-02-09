@@ -6,7 +6,7 @@ namespace Jellyfin.Plugin.MetaShark.Test
     [TestClass]
     public class ImdbApiTest
     {
-        private TestContext testContextInstance;
+        private TestContext? testContextInstance;
 
         /// <summary>
         /// Gets or sets the test context which provides
@@ -14,7 +14,7 @@ namespace Jellyfin.Plugin.MetaShark.Test
         /// </summary>
         public TestContext TestContext
         {
-            get { return testContextInstance; }
+            get { return testContextInstance!; }
             set { testContextInstance = value; }
         }
 

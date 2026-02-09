@@ -1,3 +1,7 @@
+// <copyright file="BoxSetManager.cs" company="PlaceholderCompany">
+// Copyright (c) PlaceholderCompany. All rights reserved.
+// </copyright>
+
 using System;
 using System.Collections.Generic;
 using System.IO;
@@ -17,54 +21,62 @@ using Microsoft.Extensions.Logging;
 
 namespace Jellyfin.Plugin.MetaShark;
 
-public class BoxSetManager : IHostedService
+public sealed class BoxSetManager : IHostedService, IDisposable
 {
-    private readonly ILibraryManager _libraryManager;
-    private readonly ICollectionManager _collectionManager;
-    private readonly Timer _timer;
-    private readonly HashSet<string> _queuedTmdbCollection;
-    private readonly ILogger<BoxSetManager> _logger; // TODO logging
+    private static readonly Action<ILogger, Exception?> LogCollectionDisabled =
+        LoggerMessage.Define(LogLevel.Information, new EventId(1, nameof(ScanLibrary)), "插件配置中未打开自动创建合集功能");
+
+    private static readonly Action<ILogger, int, Exception?> LogCollectionsFound =
+        LoggerMessage.Define<int>(LogLevel.Information, new EventId(2, nameof(ScanLibrary)), "共找到 {Count} 个合集信息");
+
+    private static readonly Action<ILogger, string, string, Exception?> LogCreateCollection =
+        LoggerMessage.Define<string, string>(LogLevel.Information, new EventId(3, nameof(AddMoviesToCollection)), "创建合集 [{CollectionName}]，添加电影：{MoviesNames}");
+
+    private static readonly Action<ILogger, string, string, Exception?> LogUpdateCollection =
+        LoggerMessage.Define<string, string>(LogLevel.Information, new EventId(4, nameof(AddMoviesToCollection)), "更新合集 [{CollectionName}]，添加电影：{MoviesNames}");
+
+    private readonly ILibraryManager libraryManager;
+    private readonly ICollectionManager collectionManager;
+    private readonly Timer timer;
+    private readonly HashSet<string> queuedTmdbCollection;
+    private readonly ILogger<BoxSetManager> logger; // TODO logging
 
     public BoxSetManager(ILibraryManager libraryManager, ICollectionManager collectionManager, ILoggerFactory loggerFactory)
     {
-        _libraryManager = libraryManager;
-        _collectionManager = collectionManager;
-        _logger = loggerFactory.CreateLogger<BoxSetManager>();
-        _timer = new Timer(_ => OnTimerElapsed(), null, Timeout.Infinite, Timeout.Infinite);
-        _queuedTmdbCollection = new HashSet<string>();
+        this.libraryManager = libraryManager;
+        this.collectionManager = collectionManager;
+        this.logger = loggerFactory.CreateLogger<BoxSetManager>();
+        this.timer = new Timer(_ => this.OnTimerElapsed(), null, Timeout.Infinite, Timeout.Infinite);
+        this.queuedTmdbCollection = new HashSet<string>();
     }
-
 
     public async Task ScanLibrary(IProgress<double> progress)
     {
-        var startIndex = 0;
-        var pagesize = 1000;
-
         if (!(Plugin.Instance?.Configuration.EnableTmdbCollection ?? false))
         {
-            _logger.LogInformation("插件配置中未打开自动创建合集功能");
+            LogCollectionDisabled(this.logger, null);
             progress?.Report(100);
             return;
         }
 
-        var boxSets = GetAllBoxSetsFromLibrary();
-        var movieCollections = GetMoviesFromLibrary();
+        var boxSets = this.GetAllBoxSetsFromLibrary();
+        var movieCollections = this.GetMoviesFromLibrary();
 
-        _logger.LogInformation("共找到 {Count} 个合集信息", movieCollections.Count);
+        LogCollectionsFound(this.logger, movieCollections.Count, null);
         int index = 0;
         foreach (var (collectionName, collectionMovies) in movieCollections)
         {
             progress?.Report(100.0 * index / movieCollections.Count);
 
             var boxSet = boxSets.FirstOrDefault(b => b?.Name == collectionName);
-            await AddMoviesToCollection(collectionMovies, collectionName, boxSet).ConfigureAwait(false);
+            await this.AddMoviesToCollection(collectionMovies, collectionName, boxSet).ConfigureAwait(false);
             index++;
         }
 
         progress?.Report(100);
     }
 
-    private async Task AddMoviesToCollection(IList<Movie> movies, string collectionName, BoxSet boxSet)
+    private async Task AddMoviesToCollection(IList<Movie> movies, string collectionName, BoxSet? boxSet)
     {
         if (movies.Count < 2)
         {
@@ -75,45 +87,59 @@ public class BoxSetManager : IHostedService
         var movieIds = movies.Select(m => m.Id).ToList();
         if (boxSet is null)
         {
-            _logger.LogInformation("创建合集 [{collectionName}]，添加电影：{moviesNames}", collectionName, movies.Select(m => m.Name).Aggregate((a, b) => a + ", " + b));
-            boxSet = await _collectionManager.CreateCollectionAsync(new CollectionCreationOptions
+            var movieNames = string.Join(", ", movies.Select(m => m.Name));
+            LogCreateCollection(this.logger, collectionName, movieNames, null);
+            boxSet = await collectionManager.CreateCollectionAsync(new CollectionCreationOptions
             {
                 Name = collectionName,
-            });
+            }).ConfigureAwait(false);
 
-            await _collectionManager.AddToCollectionAsync(boxSet.Id, movieIds);
+            await collectionManager.AddToCollectionAsync(boxSet.Id, movieIds).ConfigureAwait(false);
 
             // HACK: 等获取 boxset 元数据后再更新一次合集，用于修正刷新元数据后丢失关联电影的 BUG
-            _queuedTmdbCollection.Add(collectionName);
-            _timer.Change(60000, Timeout.Infinite);
+            this.queuedTmdbCollection.Add(collectionName);
+            this.timer.Change(60000, Timeout.Infinite);
         }
         else
         {
-            _logger.LogInformation("更新合集 [{collectionName}]，添加电影：{moviesNames}", collectionName, movies.Select(m => m.Name).Aggregate((a, b) => a + ", " + b));
-            await _collectionManager.AddToCollectionAsync(boxSet.Id, movieIds);
+            var movieNames = string.Join(", ", movies.Select(m => m.Name));
+            LogUpdateCollection(this.logger, collectionName, movieNames, null);
+            await collectionManager.AddToCollectionAsync(boxSet.Id, movieIds).ConfigureAwait(false);
         }
     }
 
-
-    private IReadOnlyCollection<BoxSet> GetAllBoxSetsFromLibrary()
+    private List<BoxSet> GetAllBoxSetsFromLibrary()
     {
-        return _libraryManager.GetItemList(new InternalItemsQuery
+        return this.libraryManager.GetItemList(new InternalItemsQuery
         {
             IncludeItemTypes = new[] { BaseItemKind.BoxSet },
             CollapseBoxSetItems = false,
-            Recursive = true
-        }).Select(b => b as BoxSet).ToList();
+            Recursive = true,
+        }).OfType<BoxSet>().ToList();
     }
 
-    
+    public void Dispose()
+    {
+        this.Dispose(true);
+        GC.SuppressFinalize(this);
+    }
+
+    private void Dispose(bool disposing)
+    {
+        if (disposing)
+        {
+            this.timer.Dispose();
+        }
+    }
+
     public IDictionary<string, IList<Movie>> GetMoviesFromLibrary()
     {
         var collectionMoviesMap = new Dictionary<string, IList<Movie>>();
 
-        foreach (var library in _libraryManager.RootFolder.Children)
+        foreach (var library in this.libraryManager.RootFolder.Children)
         {
             // 判断当前是媒体库是否是电影，并开启了 metashark 插件
-            var typeOptions = _libraryManager.GetLibraryOptions(library).TypeOptions;
+            var typeOptions = this.libraryManager.GetLibraryOptions(library).TypeOptions;
             if (typeOptions.FirstOrDefault(x => x.Type == "Movie" && x.MetadataFetchers.Contains(Plugin.PluginName)) == null)
             {
                 continue;
@@ -121,10 +147,10 @@ public class BoxSetManager : IHostedService
 
             var startIndex = 0;
             var pagesize = 1000;
-            
+
             while (true)
             {
-                var movies = _libraryManager.GetItemList(new InternalItemsQuery
+                var movies = this.libraryManager.GetItemList(new InternalItemsQuery
                 {
                     IncludeItemTypes = new[] { BaseItemKind.Movie },
                     IsVirtualItem = false,
@@ -133,8 +159,8 @@ public class BoxSetManager : IHostedService
                     StartIndex = startIndex,
                     Limit = pagesize,
                     Recursive = true,
-                    HasTmdbId = true
-                }).Select(b => b as Movie).ToList();
+                    HasTmdbId = true,
+                }).OfType<Movie>().ToList();
 
                 foreach (var movie in movies)
                 {
@@ -142,7 +168,7 @@ public class BoxSetManager : IHostedService
                     {
                         continue;
                     }
-                
+
                     if (collectionMoviesMap.TryGetValue(movie.CollectionName, out var movieList))
                     {
                         movieList.Add(movie);
@@ -165,7 +191,7 @@ public class BoxSetManager : IHostedService
         return collectionMoviesMap;
     }
 
-    private void OnLibraryManagerItemUpdated(object sender, ItemChangeEventArgs e)
+    private void OnLibraryManagerItemUpdated(object? sender, ItemChangeEventArgs e)
     {
         if (!(Plugin.Instance?.Configuration.EnableTmdbCollection ?? false))
         {
@@ -184,48 +210,49 @@ public class BoxSetManager : IHostedService
         }
 
         // 判断 item 所在的媒体库是否是电影，并开启了 metashark 插件
-        var typeOptions = _libraryManager.GetLibraryOptions(movie).TypeOptions;
+        var typeOptions = this.libraryManager.GetLibraryOptions(movie).TypeOptions;
         if (typeOptions.FirstOrDefault(x => x.Type == "Movie" && x.MetadataFetchers.Contains(Plugin.PluginName)) == null)
         {
             return;
         }
 
-        _queuedTmdbCollection.Add(movie.CollectionName);
+        this.queuedTmdbCollection.Add(movie.CollectionName);
 
         // Restart the timer. After idling for 60 seconds it should trigger the callback. This is to avoid clobbering during a large library update.
-        _timer.Change(60000, Timeout.Infinite);
+        this.timer.Change(60000, Timeout.Infinite);
     }
 
     private void OnTimerElapsed()
     {
         // Stop the timer until next update
-        _timer.Change(Timeout.Infinite, Timeout.Infinite);
+        this.timer.Change(Timeout.Infinite, Timeout.Infinite);
 
-        var tmdbCollectionNames = _queuedTmdbCollection.ToArray();
+        var tmdbCollectionNames = this.queuedTmdbCollection.ToArray();
+
         // Clear the queue now, TODO what if it crashes? Should it be cleared after it's done?
-        _queuedTmdbCollection.Clear();
+        this.queuedTmdbCollection.Clear();
 
-        var boxSets = GetAllBoxSetsFromLibrary();
-        var movies = GetMoviesFromLibrary();
+        var boxSets = this.GetAllBoxSetsFromLibrary();
+        var movies = this.GetMoviesFromLibrary();
         foreach (var collectionName in tmdbCollectionNames)
         {
             if (movies.TryGetValue(collectionName, out var collectionMovies))
             {
                 var boxSet = boxSets.FirstOrDefault(b => b?.Name == collectionName);
-                AddMoviesToCollection(collectionMovies, collectionName, boxSet).GetAwaiter().GetResult();
+                this.AddMoviesToCollection(collectionMovies, collectionName, boxSet).GetAwaiter().GetResult();
             }
         }
     }
 
     public Task StartAsync(CancellationToken cancellationToken)
     {
-        _libraryManager.ItemUpdated += OnLibraryManagerItemUpdated;
+        this.libraryManager.ItemUpdated += this.OnLibraryManagerItemUpdated;
         return Task.CompletedTask;
     }
 
     public Task StopAsync(CancellationToken cancellationToken)
     {
-        _libraryManager.ItemUpdated -= OnLibraryManagerItemUpdated;
+        this.libraryManager.ItemUpdated -= this.OnLibraryManagerItemUpdated;
         return Task.CompletedTask;
     }
 }

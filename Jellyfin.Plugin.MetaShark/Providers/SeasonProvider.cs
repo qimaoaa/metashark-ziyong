@@ -1,27 +1,31 @@
-﻿using Jellyfin.Plugin.MetaShark.Api;
-using Jellyfin.Plugin.MetaShark.Core;
-using Jellyfin.Plugin.MetaShark.Model;
-using MediaBrowser.Controller.Entities;
-using MediaBrowser.Controller.Entities.TV;
-using MediaBrowser.Controller.Library;
-using MediaBrowser.Controller.Providers;
-using MediaBrowser.Model.Entities;
-using MediaBrowser.Model.Providers;
-using Microsoft.Extensions.Logging;
-using System.Collections.Generic;
-using System.Linq;
-using System.Net.Http;
-using System.Threading;
-using System.Threading.Tasks;
-using Microsoft.AspNetCore.Http;
-using Jellyfin.Data.Enums;
-using System.IO;
+﻿// <copyright file="SeasonProvider.cs" company="PlaceholderCompany">
+// Copyright (c) PlaceholderCompany. All rights reserved.
+// </copyright>
 
 namespace Jellyfin.Plugin.MetaShark.Providers
 {
+    using System;
+    using System.Collections.Generic;
+    using System.IO;
+    using System.Linq;
+    using System.Net.Http;
+    using System.Threading;
+    using System.Threading.Tasks;
+    using Jellyfin.Data.Enums;
+    using Jellyfin.Plugin.MetaShark.Api;
+    using Jellyfin.Plugin.MetaShark.Core;
+    using Jellyfin.Plugin.MetaShark.Model;
+    using MediaBrowser.Controller.Entities;
+    using MediaBrowser.Controller.Entities.TV;
+    using MediaBrowser.Controller.Library;
+    using MediaBrowser.Controller.Providers;
+    using MediaBrowser.Model.Entities;
+    using MediaBrowser.Model.Providers;
+    using Microsoft.AspNetCore.Http;
+    using Microsoft.Extensions.Logging;
+
     public class SeasonProvider : BaseProvider, IRemoteMetadataProvider<Season, SeasonInfo>
     {
-
         public SeasonProvider(IHttpClientFactory httpClientFactory, ILoggerFactory loggerFactory, ILibraryManager libraryManager, IHttpContextAccessor httpContextAccessor, DoubanApi doubanApi, TmdbApi tmdbApi, OmdbApi omdbApi, ImdbApi imdbApi)
             : base(httpClientFactory, loggerFactory.CreateLogger<SeasonProvider>(), libraryManager, httpContextAccessor, doubanApi, tmdbApi, omdbApi, imdbApi)
         {
@@ -29,12 +33,12 @@ namespace Jellyfin.Plugin.MetaShark.Providers
 
         public string Name => Plugin.PluginName;
 
-
         /// <inheritdoc />
-        public async Task<IEnumerable<RemoteSearchResult>> GetSearchResults(SeasonInfo info, CancellationToken cancellationToken)
+        public async Task<IEnumerable<RemoteSearchResult>> GetSearchResults(SeasonInfo searchInfo, CancellationToken cancellationToken)
         {
-            this.Log($"GetSeasonSearchResults of [name]: {info.Name}");
-            return await Task.FromResult(Enumerable.Empty<RemoteSearchResult>());
+            ArgumentNullException.ThrowIfNull(searchInfo);
+            this.Log($"GetSeasonSearchResults of [name]: {searchInfo.Name}");
+            return await Task.FromResult(Enumerable.Empty<RemoteSearchResult>()).ConfigureAwait(false);
         }
 
         /// <inheritdoc />
@@ -49,7 +53,7 @@ namespace Jellyfin.Plugin.MetaShark.Providers
             var seasonNumber = info.IndexNumber; // S00/Season 00特典目录会为0
             var seasonSid = info.GetProviderId(DoubanProviderId);
             var fileName = Path.GetFileName(info.Path);
-            this.Log($"GetSeasonMetaData of [name]: {info.Name} [fileName]: {fileName} number: {info.IndexNumber} seriesTmdbId: {seriesTmdbId} sid: {sid} metaSource: {metaSource} EnableTmdb: {config.EnableTmdb}");
+            this.Log($"GetSeasonMetaData of [name]: {info.Name} [fileName]: {fileName} number: {info.IndexNumber} seriesTmdbId: {seriesTmdbId} sid: {sid} metaSource: {metaSource} EnableTmdb: {this.Config.EnableTmdb}");
             if (metaSource != MetaSource.Tmdb && !string.IsNullOrEmpty(sid))
             {
                 // seasonNumber 为 null 有三种情况：
@@ -71,10 +75,14 @@ namespace Jellyfin.Plugin.MetaShark.Providers
                 // 获取季豆瓣数据
                 if (!string.IsNullOrEmpty(seasonSid))
                 {
-                    var subject = await this._doubanApi.GetMovieAsync(seasonSid, cancellationToken).ConfigureAwait(false);
+                    var subject = await this.DoubanApi.GetMovieAsync(seasonSid, cancellationToken).ConfigureAwait(false);
                     if (subject != null)
                     {
-                        subject.Celebrities = await this._doubanApi.GetCelebritiesBySidAsync(seasonSid, cancellationToken).ConfigureAwait(false);
+                        subject.Celebrities.Clear();
+                        foreach (var celebrity in await this.DoubanApi.GetCelebritiesBySidAsync(seasonSid, cancellationToken).ConfigureAwait(false))
+                        {
+                            subject.Celebrities.Add(celebrity);
+                        }
 
                         var movie = new Season
                         {
@@ -83,14 +91,14 @@ namespace Jellyfin.Plugin.MetaShark.Providers
                             CommunityRating = subject.Rating,
                             Overview = subject.Intro,
                             ProductionYear = subject.Year,
-                            Genres = subject.Genres,
+                            Genres = subject.Genres.ToArray(),
                             PremiereDate = subject.ScreenTime,  // 发行日期
                             IndexNumber = seasonNumber,
                         };
 
                         result.Item = movie;
                         result.HasMetadata = true;
-                        subject.LimitDirectorCelebrities.Take(Configuration.PluginConfiguration.MAX_CAST_MEMBERS).ToList().ForEach(c => result.AddPerson(new PersonInfo
+                        subject.LimitDirectorCelebrities.Take(Configuration.PluginConfiguration.MAXCASTMEMBERS).ToList().ForEach(c => result.AddPerson(new PersonInfo
                         {
                             Name = c.Name,
                             Type = c.RoleType == PersonType.Director ? PersonKind.Director : PersonKind.Actor,
@@ -108,7 +116,6 @@ namespace Jellyfin.Plugin.MetaShark.Providers
                     this.Log($"Season [{info.Name}] not found douban season id!");
                 }
 
-
                 // 豆瓣找不到季数据，尝试获取tmdb的季数据
                 if (string.IsNullOrEmpty(seasonSid) && !string.IsNullOrWhiteSpace(seriesTmdbId) && seasonNumber.HasValue && seasonNumber >= 0)
                 {
@@ -119,11 +126,9 @@ namespace Jellyfin.Plugin.MetaShark.Providers
                     }
                 }
 
-
                 // 从豆瓣获取不到季信息
                 return result;
             }
-
 
             // series使用TMDB元数据来源
             // tmdb季级没有对应id，只通过indexNumber区分
@@ -135,9 +140,9 @@ namespace Jellyfin.Plugin.MetaShark.Providers
             return result;
         }
 
-
         public async Task<string?> GuessDoubanSeasonId(string? sid, string? seriesTmdbId, int? seasonNumber, ItemLookupInfo info, CancellationToken cancellationToken)
         {
+            ArgumentNullException.ThrowIfNull(info);
             if (string.IsNullOrEmpty(sid))
             {
                 return null;
@@ -151,7 +156,7 @@ namespace Jellyfin.Plugin.MetaShark.Providers
 
             // 从季文件夹名属性格式获取，如 [douban-12345] 或 [doubanid-12345]
             var fileName = this.GetOriginalFileName(info);
-            var doubanId = this.regDoubanIdAttribute.FirstMatchGroup(fileName);
+            var doubanId = this.RegDoubanIdAttribute.FirstMatchGroup(fileName);
             if (!string.IsNullOrWhiteSpace(doubanId))
             {
                 this.Log($"Found season douban [id] by attr: {doubanId}");
@@ -159,18 +164,19 @@ namespace Jellyfin.Plugin.MetaShark.Providers
             }
 
             // 从sereis获取正确名称，info.Name当是标准格式如S01等时，会变成第x季，非标准名称默认文件名
-            var series = await this._doubanApi.GetMovieAsync(sid, cancellationToken).ConfigureAwait(false);
+            var series = await this.DoubanApi.GetMovieAsync(sid, cancellationToken).ConfigureAwait(false);
             if (series == null)
             {
                 return null;
             }
+
             var seriesName = this.RemoveSeasonSuffix(series.Name);
 
             // 没有季id，但存在tmdbid，尝试从tmdb获取对应季的年份信息，用于从豆瓣搜索对应季数据
             var seasonYear = 0;
             if (!string.IsNullOrEmpty(seriesTmdbId) && (seasonNumber.HasValue && seasonNumber > 0))
             {
-                var season = await this._tmdbApi
+                var season = await this.TmdbApi
                     .GetSeasonAsync(seriesTmdbId.ToInt(), seasonNumber.Value, info.MetadataLanguage, info.MetadataLanguage, cancellationToken)
                     .ConfigureAwait(false);
                 seasonYear = season?.AirDate?.Year ?? 0;
@@ -196,6 +202,7 @@ namespace Jellyfin.Plugin.MetaShark.Providers
 
         public async Task<MetadataResult<Season>> GetMetadataByTmdb(SeasonInfo info, string? seriesTmdbId, int? seasonNumber, CancellationToken cancellationToken)
         {
+            ArgumentNullException.ThrowIfNull(info);
             var result = new MetadataResult<Season>();
 
             if (string.IsNullOrEmpty(seriesTmdbId))
@@ -208,9 +215,9 @@ namespace Jellyfin.Plugin.MetaShark.Providers
                 return result;
             }
 
-            if (TmdbEpisodeGroupMapping.TryGetGroupId(config.TmdbEpisodeGroupMap, seriesTmdbId, out var groupId))
+            if (TmdbEpisodeGroupMapping.TryGetGroupId(this.Config.TmdbEpisodeGroupMap, seriesTmdbId, out var groupId))
             {
-                var group = await this._tmdbApi
+                var group = await this.TmdbApi
                     .GetEpisodeGroupByIdAsync(groupId, info.MetadataLanguage, cancellationToken)
                     .ConfigureAwait(false);
                 var seasonGroup = group?.Groups.FirstOrDefault(g => g.Order == seasonNumber);
@@ -226,7 +233,7 @@ namespace Jellyfin.Plugin.MetaShark.Providers
                 }
             }
 
-            var seasonResult = await this._tmdbApi
+            var seasonResult = await this.TmdbApi
                 .GetSeasonAsync(seriesTmdbId.ToInt(), seasonNumber ?? 0, info.MetadataLanguage, info.MetadataLanguage, cancellationToken)
                 .ConfigureAwait(false);
             if (seasonResult == null)
@@ -234,7 +241,6 @@ namespace Jellyfin.Plugin.MetaShark.Providers
                 this.Log($"Not found season from TMDB. {info.Name} seriesTmdbId: {seriesTmdbId} seasonNumber: {seasonNumber}");
                 return result;
             }
-
 
             result.HasMetadata = true;
             result.Item = new Season
@@ -253,6 +259,5 @@ namespace Jellyfin.Plugin.MetaShark.Providers
 
             return result;
         }
-
     }
 }

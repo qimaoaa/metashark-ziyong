@@ -1,24 +1,28 @@
-using Jellyfin.Plugin.MetaShark.Api;
-using MediaBrowser.Controller.Entities;
-using MediaBrowser.Controller.Entities.Movies;
-using MediaBrowser.Controller.Library;
-using MediaBrowser.Controller.Providers;
-using MediaBrowser.Model.Dto;
-using MediaBrowser.Model.Entities;
-using MediaBrowser.Model.Extensions;
-using MediaBrowser.Model.Providers;
-using Microsoft.AspNetCore.Http;
-using Microsoft.Extensions.Logging;
-using System;
-using System.Collections.Generic;
-using System.Globalization;
-using System.Linq;
-using System.Net.Http;
-using System.Threading;
-using System.Threading.Tasks;
+// <copyright file="BoxSetImageProvider.cs" company="PlaceholderCompany">
+// Copyright (c) PlaceholderCompany. All rights reserved.
+// </copyright>
 
 namespace Jellyfin.Plugin.MetaShark.Providers
 {
+    using System;
+    using System.Collections.Generic;
+    using System.Globalization;
+    using System.Linq;
+    using System.Net.Http;
+    using System.Threading;
+    using System.Threading.Tasks;
+    using Jellyfin.Plugin.MetaShark.Api;
+    using MediaBrowser.Controller.Entities;
+    using MediaBrowser.Controller.Entities.Movies;
+    using MediaBrowser.Controller.Library;
+    using MediaBrowser.Controller.Providers;
+    using MediaBrowser.Model.Dto;
+    using MediaBrowser.Model.Entities;
+    using MediaBrowser.Model.Extensions;
+    using MediaBrowser.Model.Providers;
+    using Microsoft.AspNetCore.Http;
+    using Microsoft.Extensions.Logging;
+
     /// <summary>
     /// BoxSet image provider powered by TMDb.
     /// </summary>
@@ -49,6 +53,7 @@ namespace Jellyfin.Plugin.MetaShark.Providers
         /// <inheritdoc />
         public async Task<IEnumerable<RemoteImageInfo>> GetImages(BaseItem item, CancellationToken cancellationToken)
         {
+            ArgumentNullException.ThrowIfNull(item);
             var tmdbId = Convert.ToInt32(item.GetProviderId(MetadataProvider.Tmdb), CultureInfo.InvariantCulture);
             this.Log($"GetBoxSetImages of [name]: {item.Name} [tmdbId]: {tmdbId}");
 
@@ -60,7 +65,9 @@ namespace Jellyfin.Plugin.MetaShark.Providers
             var language = item.GetPreferredMetadataLanguage();
 
             // TODO use image languages if All Languages isn't toggled, but there's currently no way to get that value in here
-            var collection = await this._tmdbApi.GetCollectionAsync(tmdbId, null, null, cancellationToken).ConfigureAwait(false);
+            var collection = await this.TmdbApi
+                .GetCollectionAsync(tmdbId, string.Empty, string.Empty, cancellationToken)
+                .ConfigureAwait(false);
 
             if (collection?.Images is null)
             {
@@ -70,29 +77,31 @@ namespace Jellyfin.Plugin.MetaShark.Providers
             var posters = collection.Images.Posters;
             var backdrops = collection.Images.Backdrops;
             var remoteImages = new List<RemoteImageInfo>(posters.Count + backdrops.Count);
-            remoteImages.AddRange(posters.Select(x => new RemoteImageInfo {
-                    ProviderName = this.Name,
-                    Url = this._tmdbApi.GetPosterUrl(x.FilePath),
-                    Type = ImageType.Primary,
-                    CommunityRating = x.VoteAverage,
-                    VoteCount = x.VoteCount,
-                    Width = x.Width,
-                    Height = x.Height,
-                    Language = this.AdjustImageLanguage(x.Iso_639_1, language),
-                    RatingType = RatingType.Score,
-                }));
+            remoteImages.AddRange(posters.Select(x => new RemoteImageInfo
+            {
+                ProviderName = this.Name,
+                Url = this.TmdbApi.GetPosterUrl(x.FilePath),
+                Type = ImageType.Primary,
+                CommunityRating = x.VoteAverage,
+                VoteCount = x.VoteCount,
+                Width = x.Width,
+                Height = x.Height,
+                Language = this.AdjustImageLanguage(x.Iso_639_1, language),
+                RatingType = RatingType.Score,
+            }));
 
-            remoteImages.AddRange(backdrops.Select(x => new RemoteImageInfo {
-                    ProviderName = this.Name,
-                    Url = this._tmdbApi.GetBackdropUrl(x.FilePath),
-                    Type = ImageType.Backdrop,
-                    CommunityRating = x.VoteAverage,
-                    VoteCount = x.VoteCount,
-                    Width = x.Width,
-                    Height = x.Height,
-                    Language = this.AdjustImageLanguage(x.Iso_639_1, language),
-                    RatingType = RatingType.Score,
-                }));
+            remoteImages.AddRange(backdrops.Select(x => new RemoteImageInfo
+            {
+                ProviderName = this.Name,
+                Url = this.TmdbApi.GetBackdropUrl(x.FilePath),
+                Type = ImageType.Backdrop,
+                CommunityRating = x.VoteAverage,
+                VoteCount = x.VoteCount,
+                Width = x.Width,
+                Height = x.Height,
+                Language = this.AdjustImageLanguage(x.Iso_639_1, language),
+                RatingType = RatingType.Score,
+            }));
 
             return remoteImages.OrderByLanguageDescending(language);
         }

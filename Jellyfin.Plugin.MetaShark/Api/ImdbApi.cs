@@ -1,52 +1,64 @@
-using Jellyfin.Plugin.MetaShark.Core;
-using Microsoft.Extensions.Caching.Memory;
-using Microsoft.Extensions.Logging;
-using System;
-using System.Linq;
-using System.Net.Http;
-using System.Text.RegularExpressions;
-using System.Threading;
-using System.Threading.Tasks;
+// <copyright file="ImdbApi.cs" company="PlaceholderCompany">
+// Copyright (c) PlaceholderCompany. All rights reserved.
+// </copyright>
 
 namespace Jellyfin.Plugin.MetaShark.Api
 {
+    using System;
+    using System.Linq;
+    using System.Net.Http;
+    using System.Text.RegularExpressions;
+    using System.Threading;
+    using System.Threading.Tasks;
+    using Jellyfin.Plugin.MetaShark.Core;
+    using Microsoft.Extensions.Caching.Memory;
+    using Microsoft.Extensions.Logging;
+
     public class ImdbApi : IDisposable
     {
-        private readonly ILogger<DoubanApi> _logger;
-        private readonly IMemoryCache _memoryCache;
+        private static readonly Action<ILogger, string, Exception?> LogCheckNewImdbIdError =
+            LoggerMessage.Define<string>(LogLevel.Error, new EventId(1, nameof(CheckNewIDAsync)), "CheckNewImdbID error. id: {ImdbId}");
+
+        private static readonly Action<ILogger, string, Exception?> LogCheckPersonImdbIdError =
+            LoggerMessage.Define<string>(LogLevel.Error, new EventId(2, nameof(CheckPersonNewIDAsync)), "CheckPersonNewImdbID error. id: {ImdbId}");
+
+        private readonly ILogger<ImdbApi> logger;
+        private readonly MemoryCache memoryCache;
+        private readonly HttpClientHandler handler;
         private readonly HttpClient httpClient;
 
-        Regex regId = new Regex(@"/(tt\d+)", RegexOptions.Compiled);
-        Regex regPersonId = new Regex(@"/(nm\d+)", RegexOptions.Compiled);
+        private Regex regId = new Regex(@"/(tt\d+)", RegexOptions.Compiled);
+        private Regex regPersonId = new Regex(@"/(nm\d+)", RegexOptions.Compiled);
 
         public ImdbApi(ILoggerFactory loggerFactory)
         {
-            _logger = loggerFactory.CreateLogger<DoubanApi>();
-            _memoryCache = new MemoryCache(new MemoryCacheOptions());
+            this.logger = loggerFactory.CreateLogger<ImdbApi>();
+            this.memoryCache = new MemoryCache(new MemoryCacheOptions());
 
-            var handler = new HttpClientHandler()
+            this.handler = new HttpClientHandler()
             {
-                AllowAutoRedirect = false
+                AllowAutoRedirect = false,
             };
-            httpClient = new HttpClient(handler);
-            httpClient.Timeout = TimeSpan.FromSeconds(10);
+            this.httpClient = new HttpClient(this.handler, disposeHandler: false);
+            this.httpClient.Timeout = TimeSpan.FromSeconds(10);
         }
 
         /// <summary>
-        /// 通过imdb获取信息（会返回最新的imdb id）
+        /// 通过imdb获取信息（会返回最新的imdb id）.
         /// </summary>
+        /// <returns><placeholder>A <see cref="Task"/> representing the asynchronous operation.</placeholder></returns>
         public async Task<string?> CheckNewIDAsync(string id, CancellationToken cancellationToken)
         {
             var cacheKey = $"CheckNewImdbID_{id}";
             var expiredOption = new MemoryCacheEntryOptions() { AbsoluteExpirationRelativeToNow = TimeSpan.FromMinutes(30) };
-            if (this._memoryCache.TryGetValue<string?>(cacheKey, out var item))
+            if (this.memoryCache.TryGetValue<string?>(cacheKey, out var item))
             {
                 return item;
             }
 
             try
             {
-                var url = $"https://www.imdb.com/title/{id}/";
+                var url = new Uri($"https://www.imdb.com/title/{id}/");
                 var resp = await this.httpClient.GetAsync(url, cancellationToken).ConfigureAwait(false);
                 if (resp.Headers.TryGetValues("Location", out var values))
                 {
@@ -57,34 +69,44 @@ namespace Jellyfin.Plugin.MetaShark.Api
                         item = newId;
                     }
                 }
-                this._memoryCache.Set(cacheKey, item, expiredOption);
+
+                this.memoryCache.Set(cacheKey, item, expiredOption);
                 return item;
             }
-            catch (Exception ex)
+            catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
             {
-                this._logger.LogError(ex, "CheckNewImdbID error. id: {0}", id);
-                this._memoryCache.Set<string?>(cacheKey, null, expiredOption);
+                throw;
+            }
+            catch (HttpRequestException ex)
+            {
+                LogCheckNewImdbIdError(this.logger, id, ex);
+                this.memoryCache.Set<string?>(cacheKey, null, expiredOption);
                 return null;
             }
-
-            return null;
+            catch (TaskCanceledException ex)
+            {
+                LogCheckNewImdbIdError(this.logger, id, ex);
+                this.memoryCache.Set<string?>(cacheKey, null, expiredOption);
+                return null;
+            }
         }
 
         /// <summary>
-        /// 通过imdb获取信息（会返回最新的imdb id）
+        /// 通过imdb获取信息（会返回最新的imdb id）.
         /// </summary>
+        /// <returns><placeholder>A <see cref="Task"/> representing the asynchronous operation.</placeholder></returns>
         public async Task<string?> CheckPersonNewIDAsync(string id, CancellationToken cancellationToken)
         {
             var cacheKey = $"CheckPersonNewImdbID_{id}";
             var expiredOption = new MemoryCacheEntryOptions() { AbsoluteExpirationRelativeToNow = TimeSpan.FromMinutes(30) };
-            if (this._memoryCache.TryGetValue<string?>(cacheKey, out var item))
+            if (this.memoryCache.TryGetValue<string?>(cacheKey, out var item))
             {
                 return item;
             }
 
             try
             {
-                var url = $"https://www.imdb.com/name/{id}/";
+                var url = new Uri($"https://www.imdb.com/name/{id}/");
                 var resp = await this.httpClient.GetAsync(url, cancellationToken).ConfigureAwait(false);
                 if (resp.Headers.TryGetValues("Location", out var values))
                 {
@@ -95,21 +117,31 @@ namespace Jellyfin.Plugin.MetaShark.Api
                         item = newId;
                     }
                 }
-                this._memoryCache.Set(cacheKey, item, expiredOption);
+
+                this.memoryCache.Set(cacheKey, item, expiredOption);
                 return item;
             }
-            catch (Exception ex)
+            catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
             {
-                this._logger.LogError(ex, "CheckPersonNewImdbID error. id: {0}", id);
-                this._memoryCache.Set<string?>(cacheKey, null, expiredOption);
+                throw;
+            }
+            catch (HttpRequestException ex)
+            {
+                LogCheckPersonImdbIdError(this.logger, id, ex);
+                this.memoryCache.Set<string?>(cacheKey, null, expiredOption);
+                return null;
+            }
+            catch (TaskCanceledException ex)
+            {
+                LogCheckPersonImdbIdError(this.logger, id, ex);
+                this.memoryCache.Set<string?>(cacheKey, null, expiredOption);
                 return null;
             }
         }
 
-
         public void Dispose()
         {
-            Dispose(true);
+            this.Dispose(true);
             GC.SuppressFinalize(this);
         }
 
@@ -117,11 +149,13 @@ namespace Jellyfin.Plugin.MetaShark.Api
         {
             if (disposing)
             {
-                _memoryCache.Dispose();
+                this.memoryCache.Dispose();
+                this.httpClient.Dispose();
+                this.handler.Dispose();
             }
         }
 
-        private bool IsEnable()
+        private static bool IsEnable()
         {
             return Plugin.Instance?.Configuration.EnableTmdb ?? true;
         }

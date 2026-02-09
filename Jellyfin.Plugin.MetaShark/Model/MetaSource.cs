@@ -1,17 +1,20 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
+﻿// <copyright file="MetaSource.cs" company="PlaceholderCompany">
+// Copyright (c) PlaceholderCompany. All rights reserved.
+// </copyright>
 
 namespace Jellyfin.Plugin.MetaShark.Model
 {
+    using System;
+    using System.Collections.Generic;
+    using System.Linq;
+    using System.Text;
+    using System.Threading.Tasks;
 
     public enum MetaSource
     {
         Douban,
         Tmdb,
-        None
+        None,
     }
 
     public static class MetaSourceExtensions
@@ -23,12 +26,12 @@ namespace Jellyfin.Plugin.MetaShark.Model
                 return MetaSource.None;
             }
 
-            if (str.ToLower().StartsWith("douban"))
+            if (str.StartsWith("douban", StringComparison.OrdinalIgnoreCase))
             {
                 return MetaSource.Douban;
             }
 
-            if (str.ToLower().StartsWith("tmdb"))
+            if (str.StartsWith("tmdb", StringComparison.OrdinalIgnoreCase))
             {
                 return MetaSource.Tmdb;
             }

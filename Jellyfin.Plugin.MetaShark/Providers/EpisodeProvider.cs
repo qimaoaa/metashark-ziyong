@@ -1,53 +1,58 @@
-﻿using Jellyfin.Plugin.MetaShark.Api;
-using Jellyfin.Plugin.MetaShark.Core;
-using MediaBrowser.Controller.Entities.TV;
-using MediaBrowser.Controller.Library;
-using MediaBrowser.Controller.Providers;
-using MediaBrowser.Model.Entities;
-using MediaBrowser.Model.Providers;
-using Microsoft.Extensions.Logging;
-using Microsoft.Extensions.Caching.Memory;
-using System;
-using System.Collections.Generic;
-using System.IO;
-using System.Linq;
-using System.Net.Http;
-using System.Threading;
-using System.Threading.Tasks;
-using Microsoft.AspNetCore.Http;
+﻿// <copyright file="EpisodeProvider.cs" company="PlaceholderCompany">
+// Copyright (c) PlaceholderCompany. All rights reserved.
+// </copyright>
 
 namespace Jellyfin.Plugin.MetaShark.Providers
 {
+    using System;
+    using System.Collections.Generic;
+    using System.IO;
+    using System.Linq;
+    using System.Net.Http;
+    using System.Threading;
+    using System.Threading.Tasks;
+    using Jellyfin.Plugin.MetaShark.Api;
+    using Jellyfin.Plugin.MetaShark.Core;
+    using MediaBrowser.Controller.Entities.TV;
+    using MediaBrowser.Controller.Library;
+    using MediaBrowser.Controller.Providers;
+    using MediaBrowser.Model.Entities;
+    using MediaBrowser.Model.Providers;
+    using Microsoft.AspNetCore.Http;
+    using Microsoft.Extensions.Caching.Memory;
+    using Microsoft.Extensions.Logging;
+
     public class EpisodeProvider : BaseProvider, IRemoteMetadataProvider<Episode, EpisodeInfo>, IDisposable
     {
-        private readonly IMemoryCache _memoryCache;
+        private readonly MemoryCache memoryCache;
 
         public EpisodeProvider(IHttpClientFactory httpClientFactory, ILoggerFactory loggerFactory, ILibraryManager libraryManager, IHttpContextAccessor httpContextAccessor, DoubanApi doubanApi, TmdbApi tmdbApi, OmdbApi omdbApi, ImdbApi imdbApi)
             : base(httpClientFactory, loggerFactory.CreateLogger<EpisodeProvider>(), libraryManager, httpContextAccessor, doubanApi, tmdbApi, omdbApi, imdbApi)
         {
-            this._memoryCache = new MemoryCache(new MemoryCacheOptions());
+            this.memoryCache = new MemoryCache(new MemoryCacheOptions());
         }
 
         public string Name => Plugin.PluginName;
 
-
         /// <inheritdoc />
-        public async Task<IEnumerable<RemoteSearchResult>> GetSearchResults(EpisodeInfo info, CancellationToken cancellationToken)
+        public async Task<IEnumerable<RemoteSearchResult>> GetSearchResults(EpisodeInfo searchInfo, CancellationToken cancellationToken)
         {
-            this.Log($"GetEpisodeSearchResults of [name]: {info.Name}");
-            return await Task.FromResult(Enumerable.Empty<RemoteSearchResult>());
+            ArgumentNullException.ThrowIfNull(searchInfo);
+            this.Log($"GetEpisodeSearchResults of [name]: {searchInfo.Name}");
+            return await Task.FromResult(Enumerable.Empty<RemoteSearchResult>()).ConfigureAwait(false);
         }
 
         /// <inheritdoc />
         public async Task<MetadataResult<Episode>> GetMetadata(EpisodeInfo info, CancellationToken cancellationToken)
         {
+            ArgumentNullException.ThrowIfNull(info);
             // 刷新元数据四种模式差别：
             // 自动扫描匹配：info的Name、IndexNumber和ParentIndexNumber是从文件名解析出来的，假如命名不规范，就会导致解析出错误值
             // 识别：info的Name、IndexNumber和ParentIndexNumber是从文件名解析出来的，provinceIds有指定选择项的ProvinceId
             // 覆盖所有元数据：info的Name、IndexNumber和ParentIndexNumber是从文件名解析出来的，provinceIds保留所有旧值
             // 搜索缺少的元数据：info的Name、IndexNumber和ParentIndexNumber是从当前的元数据获取，provinceIds保留所有旧值
             var fileName = Path.GetFileName(info.Path);
-            this.Log($"GetEpisodeMetadata of [name]: {info.Name} [fileName]: {fileName} number: {info.IndexNumber} ParentIndexNumber: {info.ParentIndexNumber} IsMissingEpisode: {info.IsMissingEpisode} EnableTmdb: {config.EnableTmdb} DisplayOrder: {info.SeriesDisplayOrder}");
+            this.Log($"GetEpisodeMetadata of [name]: {info.Name} [fileName]: {fileName} number: {info.IndexNumber} ParentIndexNumber: {info.ParentIndexNumber} IsMissingEpisode: {info.IsMissingEpisode} EnableTmdb: {this.Config.EnableTmdb} DisplayOrder: {info.SeriesDisplayOrder}");
             var result = new MetadataResult<Episode>();
 
             // Allowing this will dramatically increase scan times
@@ -107,7 +112,6 @@ namespace Jellyfin.Plugin.MetaShark.Providers
                 ParentIndexNumber = seasonNumber,
             };
 
-
             item.PremiereDate = episodeResult.AirDate;
             item.ProductionYear = episodeResult.AirDate?.Year;
             item.Name = episodeResult.Name;
@@ -121,16 +125,19 @@ namespace Jellyfin.Plugin.MetaShark.Providers
 
         /// <summary>
         /// 重新解析文件名
-        /// 注意：这里修改替换 ParentIndexNumber 值后，会重新触发 SeasonProvier 的 GetMetadata 方法，并带上最新的季数 IndexNumber
+        /// 注意：这里修改替换 ParentIndexNumber 值后，会重新触发 SeasonProvier 的 GetMetadata 方法，并带上最新的季数 IndexNumber.
         /// </summary>
+        /// <returns></returns>
         public EpisodeInfo FixParseInfo(EpisodeInfo info)
         {
+            ArgumentNullException.ThrowIfNull(info);
             // 使用 AnitomySharp 进行重新解析，解决 anime 识别错误
             var fileName = Path.GetFileNameWithoutExtension(info.Path) ?? info.Name;
             if (string.IsNullOrEmpty(fileName))
             {
                 return info;
             }
+
             var parseResult = NameParser.ParseEpisode(fileName);
             info.Year = parseResult.Year;
             info.Name = parseResult.ChineseName ?? parseResult.Name;
@@ -160,7 +167,7 @@ namespace Jellyfin.Plugin.MetaShark.Providers
             // 没有 season 级目录或部分特殊不规范命名，会变成虚拟季，ParentIndexNumber 默认设为 1
             // https://github.com/jellyfin/jellyfin/blob/926470829d91d93b4c0b22c5b8b89a791abbb434/Emby.Server.Implementations/Library/LibraryManager.cs#L2626
             // 从 10.10.7 开始 jellyfin 去掉了虚拟季默认为 1 的处理，需要我们自己修正
-            // https://github.com/jellyfin/jellyfin/commit/72911501d34a1da4333f731e1f24169c21248f54 
+            // https://github.com/jellyfin/jellyfin/commit/72911501d34a1da4333f731e1f24169c21248f54
             var isVirtualSeason = this.IsVirtualSeason(info);
             var seasonFolderPath = this.GetOriginalSeasonPath(info);
             if (info.ParentIndexNumber is null or 1 && isVirtualSeason)
@@ -185,11 +192,12 @@ namespace Jellyfin.Plugin.MetaShark.Providers
             // TODO: 10.11有时特殊剧集名如【再与天比高SUPER双语版.E04（国语有删减）.mp4】不传ParentIndexNumber，原因不明
             if (info.ParentIndexNumber is null && !isVirtualSeason && !string.IsNullOrEmpty(seasonFolderPath))
             {
-                var guestSeasonNumber = this._libraryManager.GetSeasonNumberFromPath(seasonFolderPath);
+                var guestSeasonNumber = this.LibraryManager.GetSeasonNumberFromPath(seasonFolderPath);
                 if (!guestSeasonNumber.HasValue)
                 {
                     guestSeasonNumber = this.GuessSeasonNumberByDirectoryName(seasonFolderPath);
                 }
+
                 if (guestSeasonNumber.HasValue && guestSeasonNumber != info.ParentIndexNumber)
                 {
                     this.Log("FixSeasonNumber by season path. old: {0} new: {1}", info.ParentIndexNumber, guestSeasonNumber);
@@ -219,7 +227,6 @@ namespace Jellyfin.Plugin.MetaShark.Providers
 
             return info;
         }
-
 
         private MetadataResult<Episode>? HandleAnimeExtras(EpisodeInfo info)
         {
@@ -270,13 +277,10 @@ namespace Jellyfin.Plugin.MetaShark.Providers
             //         Name = parseResult.SpecialName == info.Name ? fileName : parseResult.SpecialName,
             //     };
 
-            //     return result;
+            // return result;
             // }
-
             return null;
         }
-
-
 
         protected int GetVideoFileCount(string? dir)
         {
@@ -286,16 +290,13 @@ namespace Jellyfin.Plugin.MetaShark.Providers
             }
 
             var cacheKey = $"filecount_{dir}";
-            if (this._memoryCache.TryGetValue<int>(cacheKey, out var videoFilesCount))
+            if (this.memoryCache.TryGetValue<int>(cacheKey, out var videoFilesCount))
             {
                 return videoFilesCount;
             }
 
             var dirInfo = new DirectoryInfo(dir);
-            if (dirInfo == null)
-            {
-                return 0;
-            }
+
             var files = dirInfo.GetFiles();
             var nameOptions = new Emby.Naming.Common.NamingOptions();
 
@@ -308,14 +309,13 @@ namespace Jellyfin.Plugin.MetaShark.Providers
             }
 
             var expiredOption = new MemoryCacheEntryOptions() { AbsoluteExpirationRelativeToNow = TimeSpan.FromMinutes(1) };
-            this._memoryCache.Set<int>(cacheKey, videoFilesCount, expiredOption);
+            this.memoryCache.Set<int>(cacheKey, videoFilesCount, expiredOption);
             return videoFilesCount;
         }
 
-
         public void Dispose()
         {
-            Dispose(true);
+            this.Dispose(true);
             GC.SuppressFinalize(this);
         }
 
@@ -323,7 +323,7 @@ namespace Jellyfin.Plugin.MetaShark.Providers
         {
             if (disposing)
             {
-                _memoryCache.Dispose();
+                this.memoryCache.Dispose();
             }
         }
     }

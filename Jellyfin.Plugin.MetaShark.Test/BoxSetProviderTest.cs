@@ -28,7 +28,7 @@ namespace Jellyfin.Plugin.MetaShark.Test
             var info = new BoxSetInfo() { Name = "攻壳机动队（系列）", MetadataLanguage = "zh" };
             var httpClientFactory = new DefaultHttpClientFactory();
             var libraryManagerStub = new Mock<ILibraryManager>();
-            libraryManagerStub.Setup(x => x.ParseName(info.Name)).Returns(new ItemLookupInfo(){Name = info.Name});
+            libraryManagerStub.Setup(x => x.ParseName(info.Name)).Returns(new ItemLookupInfo() { Name = info.Name });
             var httpContextAccessorStub = new Mock<IHttpContextAccessor>();
             var doubanApi = new DoubanApi(loggerFactory);
             var tmdbApi = new TmdbApi(loggerFactory);

@@ -1,11 +1,15 @@
-using Jellyfin.Plugin.MetaShark.Api;
-using MediaBrowser.Controller;
-using MediaBrowser.Controller.Plugins;
-using Microsoft.Extensions.DependencyInjection;
-using Microsoft.Extensions.Logging;
+// <copyright file="ServiceRegistrator.cs" company="PlaceholderCompany">
+// Copyright (c) PlaceholderCompany. All rights reserved.
+// </copyright>
 
 namespace Jellyfin.Plugin.MetaShark
 {
+    using Jellyfin.Plugin.MetaShark.Api;
+    using MediaBrowser.Controller;
+    using MediaBrowser.Controller.Plugins;
+    using Microsoft.Extensions.DependencyInjection;
+    using Microsoft.Extensions.Logging;
+
     /// <inheritdoc />
     public class ServiceRegistrator : IPluginServiceRegistrator
     {

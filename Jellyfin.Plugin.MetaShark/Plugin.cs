@@ -1,3 +1,7 @@
+// <copyright file="Plugin.cs" company="PlaceholderCompany">
+// Copyright (c) PlaceholderCompany. All rights reserved.
+// </copyright>
+
 using System;
 using System.Collections.Generic;
 using System.Globalization;
@@ -26,8 +30,7 @@ public class Plugin : BasePlugin<PluginConfiguration>, IHasWebPages
     /// </summary>
     public const string ProviderId = "MetaSharkID";
 
-
-    private readonly IServerApplicationHost _appHost;
+    private readonly IServerApplicationHost appHost;
 
     /// <summary>
     /// Initializes a new instance of the <see cref="Plugin"/> class.
@@ -37,7 +40,7 @@ public class Plugin : BasePlugin<PluginConfiguration>, IHasWebPages
     public Plugin(IServerApplicationHost appHost, IApplicationPaths applicationPaths, IXmlSerializer xmlSerializer)
         : base(applicationPaths, xmlSerializer)
     {
-        this._appHost = appHost;
+        this.appHost = appHost;
         Plugin.Instance = this;
     }
 
@@ -60,18 +63,19 @@ public class Plugin : BasePlugin<PluginConfiguration>, IHasWebPages
             new PluginPageInfo
             {
                 Name = this.Name,
-                EmbeddedResourcePath = string.Format(CultureInfo.InvariantCulture, "{0}.Configuration.configPage.html", GetType().Namespace),
+                EmbeddedResourcePath = string.Format(CultureInfo.InvariantCulture, "{0}.Configuration.configPage.html", this.GetType().Namespace),
             },
         };
     }
 
-    public string GetLocalApiBaseUrl()
+    public Uri GetLocalApiBaseUrl()
     {
-        return this._appHost.GetLocalApiUrl("127.0.0.1", "http");
+        return new Uri(this.appHost.GetLocalApiUrl("127.0.0.1", "http"), UriKind.Absolute);
     }
 
-    public string GetApiBaseUrl(HttpRequest request)
+    public Uri GetApiBaseUrl(HttpRequest request)
     {
+        ArgumentNullException.ThrowIfNull(request);
         int? requestPort = request.Host.Port;
         if (requestPort == null
             || (requestPort == 80 && string.Equals(request.Scheme, "http", StringComparison.OrdinalIgnoreCase))
@@ -80,6 +84,6 @@ public class Plugin : BasePlugin<PluginConfiguration>, IHasWebPages
             requestPort = -1;
         }
 
-        return this._appHost.GetLocalApiUrl(request.Host.Host, request.Scheme, requestPort);
+        return new Uri(this.appHost.GetLocalApiUrl(request.Host.Host, request.Scheme, requestPort), UriKind.Absolute);
     }
 }

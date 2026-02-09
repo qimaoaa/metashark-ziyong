@@ -412,7 +412,7 @@ namespace AnitomySharp
             _parser.Tokens.Insert(foundIdx,
               new Token(options.Identifiable ? Token.TokenCategory.Identifier : Token.TokenCategory.Unknown, token.Enclosed, prefix));
 
-                return true;
+            return true;
 
         }
 

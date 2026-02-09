@@ -1,33 +1,40 @@
-using System.Collections.Specialized;
-using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Text.Json.Serialization;
-using System.Threading.Tasks;
-using MediaBrowser.Controller.Providers;
+// <copyright file="ParseNameResult.cs" company="PlaceholderCompany">
+// Copyright (c) PlaceholderCompany. All rights reserved.
+// </copyright>
 
 namespace Jellyfin.Plugin.MetaShark.Model
 {
+    using System;
+    using System.Collections.Generic;
+    using System.Collections.Specialized;
+    using System.Globalization;
+    using System.Linq;
+    using System.Text;
+    using System.Text.Json.Serialization;
+    using System.Threading.Tasks;
+    using MediaBrowser.Controller.Providers;
+
     public class ParseNameResult : ItemLookupInfo
     {
-        public string? ChineseName { get; set; } = null;
+        public string? ChineseName { get; set; }
 
         /// <summary>
-        /// 可能会解析不对，最好只在动画SP中才使用
+        /// Gets or sets 可能会解析不对，最好只在动画SP中才使用.
         /// </summary>
-        public string? EpisodeName { get; set; } = null;
+        public string? EpisodeName { get; set; }
 
-        private string _animeType = string.Empty;
+        private string animeType = string.Empty;
+
         public string AnimeType
         {
             get
             {
-                return _animeType.ToUpper();
+                return this.animeType.ToUpperInvariant();
             }
+
             set
             {
-                _animeType = value;
+                this.animeType = value;
             }
         }
 
@@ -35,7 +42,7 @@ namespace Jellyfin.Plugin.MetaShark.Model
         {
             get
             {
-                return !string.IsNullOrEmpty(AnimeType) && AnimeType.ToUpper() == "SP";
+                return !string.IsNullOrEmpty(this.AnimeType) && string.Equals(this.AnimeType, "SP", StringComparison.OrdinalIgnoreCase);
             }
         }
 
@@ -43,7 +50,10 @@ namespace Jellyfin.Plugin.MetaShark.Model
         {
             get
             {
-                return !string.IsNullOrEmpty(AnimeType) && AnimeType.ToUpper() != "SP" && AnimeType.ToUpper() != "OVA" && AnimeType.ToUpper() != "TV";
+                return !string.IsNullOrEmpty(this.AnimeType)
+                    && !string.Equals(this.AnimeType, "SP", StringComparison.OrdinalIgnoreCase)
+                    && !string.Equals(this.AnimeType, "OVA", StringComparison.OrdinalIgnoreCase)
+                    && !string.Equals(this.AnimeType, "TV", StringComparison.OrdinalIgnoreCase);
             }
         }
 
@@ -51,12 +61,12 @@ namespace Jellyfin.Plugin.MetaShark.Model
         {
             get
             {
-                if (!IndexNumber.HasValue)
+                if (!this.IndexNumber.HasValue)
                 {
                     return null;
                 }
 
-                return $"{IndexNumber:00}";
+                return this.IndexNumber.Value.ToString("00", CultureInfo.InvariantCulture);
             }
         }
 
@@ -64,13 +74,13 @@ namespace Jellyfin.Plugin.MetaShark.Model
         {
             get
             {
-                if (IndexNumber.HasValue)
+                if (this.IndexNumber.HasValue)
                 {
-                    return $"{AnimeType} {PaddingZeroIndexNumber}";
+                    return string.Format(CultureInfo.InvariantCulture, "{0} {1}", this.AnimeType, this.PaddingZeroIndexNumber);
                 }
                 else
                 {
-                    return $"{AnimeType}";
+                    return string.Format(CultureInfo.InvariantCulture, "{0}", this.AnimeType);
                 }
             }
         }
@@ -79,16 +89,16 @@ namespace Jellyfin.Plugin.MetaShark.Model
         {
             get
             {
-                if (!string.IsNullOrEmpty(EpisodeName) && IndexNumber.HasValue)
+                if (!string.IsNullOrEmpty(this.EpisodeName) && this.IndexNumber.HasValue)
                 {
-                    return $"{EpisodeName} {IndexNumber}";
+                    return $"{this.EpisodeName} {this.IndexNumber}";
                 }
-                else if (!string.IsNullOrEmpty(EpisodeName))
+                else if (!string.IsNullOrEmpty(this.EpisodeName))
                 {
-                    return EpisodeName;
+                    return this.EpisodeName;
                 }
 
-                return Name;
+                return this.Name;
             }
         }
     }

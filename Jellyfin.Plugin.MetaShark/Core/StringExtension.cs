@@ -1,14 +1,18 @@
-using System;
-using System.Collections.Generic;
-using System.Diagnostics.Eventing.Reader;
-using System.Linq;
-using System.Text;
-using System.Text.RegularExpressions;
-using System.Threading.Tasks;
-using StringMetric;
+// <copyright file="StringExtension.cs" company="PlaceholderCompany">
+// Copyright (c) PlaceholderCompany. All rights reserved.
+// </copyright>
 
 namespace Jellyfin.Plugin.MetaShark.Core
 {
+    using System;
+    using System.Collections.Generic;
+    using System.Diagnostics.Eventing.Reader;
+    using System.Linq;
+    using System.Text;
+    using System.Text.RegularExpressions;
+    using System.Threading.Tasks;
+    using StringMetric;
+
     public static class StringExtension
     {
         public static long ToLong(this string s)
@@ -46,8 +50,9 @@ namespace Jellyfin.Plugin.MetaShark.Core
 
         public static bool IsChinese(this string s)
         {
+            ArgumentNullException.ThrowIfNull(s);
             Regex chineseReg = new Regex(@"[\u4e00-\u9fa5：]{1,}", RegexOptions.Compiled);
-            return chineseReg.IsMatch(s.Replace(" ", string.Empty).Trim());
+            return chineseReg.IsMatch(s.Replace(" ", string.Empty, StringComparison.Ordinal).Trim());
         }
 
         public static bool HasChinese(this string s)
@@ -70,6 +75,8 @@ namespace Jellyfin.Plugin.MetaShark.Core
 
         public static string GetMatchGroup(this string text, Regex reg)
         {
+            ArgumentNullException.ThrowIfNull(text);
+            ArgumentNullException.ThrowIfNull(reg);
             var match = reg.Match(text);
             if (match.Success && match.Groups.Count > 1)
             {

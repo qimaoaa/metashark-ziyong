@@ -202,7 +202,7 @@
                         $('#current_version').text("v" + config.Version);
 
                         document.querySelector('#DoubanCookies').value = config.DoubanCookies;
-                        document.querySelector('#DoubanImageProxyBaseUrl').value = config.DoubanImageProxyBaseUrl;
+                        document.querySelector('#DoubanImageProxyBaseUrl').value = config.DoubanImageProxyBaseUrl || '';
                         document.querySelector('#EnableDoubanAvoidRiskControl').checked = config.EnableDoubanAvoidRiskControl;
                         document.querySelector('#EnableDoubanLargePoster').checked = config.EnableDoubanLargePoster;
                         document.querySelector('#EnableDoubanBackdropRaw').checked = config.EnableDoubanBackdropRaw;
@@ -235,7 +235,8 @@
                     Dashboard.showLoadingMsg();
                     ApiClient.getPluginConfiguration(TemplateConfig.pluginUniqueId).then(function (config) {
                         config.DoubanCookies = document.querySelector('#DoubanCookies').value;
-                        config.DoubanImageProxyBaseUrl = document.querySelector('#DoubanImageProxyBaseUrl').value;
+                        var doubanProxyUrl = document.querySelector('#DoubanImageProxyBaseUrl').value;
+                        config.DoubanImageProxyBaseUrl = doubanProxyUrl ? doubanProxyUrl : null;
                         config.EnableDoubanAvoidRiskControl = document.querySelector('#EnableDoubanAvoidRiskControl').checked;
                         config.EnableDoubanLargePoster = document.querySelector('#EnableDoubanLargePoster').checked;
                         config.EnableDoubanBackdropRaw = document.querySelector('#EnableDoubanBackdropRaw').checked;

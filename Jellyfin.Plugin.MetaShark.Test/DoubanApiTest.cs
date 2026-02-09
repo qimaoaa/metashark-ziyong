@@ -7,7 +7,7 @@ namespace Jellyfin.Plugin.MetaShark.Test
     [TestClass]
     public class DoubanApiTest
     {
-        private TestContext testContextInstance;
+        private TestContext? testContextInstance;
 
         /// <summary>
         /// Gets or sets the test context which provides
@@ -15,7 +15,7 @@ namespace Jellyfin.Plugin.MetaShark.Test
         /// </summary>
         public TestContext TestContext
         {
-            get { return testContextInstance; }
+            get { return testContextInstance!; }
             set { testContextInstance = value; }
         }
 
@@ -40,7 +40,7 @@ namespace Jellyfin.Plugin.MetaShark.Test
                 try
                 {
                     var result = await api.SearchAsync(keyword, CancellationToken.None);
-                    TestContext.WriteLine(result.ToJson());
+                    TestContext.WriteLine(result?.ToJson() ?? string.Empty);
                 }
                 catch (Exception ex)
                 {
@@ -61,8 +61,7 @@ namespace Jellyfin.Plugin.MetaShark.Test
                 try
                 {
                     var result = await api.SearchBySuggestAsync(keyword, CancellationToken.None);
-                    var str = result.ToJson();
-                    TestContext.WriteLine(result.ToJson());
+                    TestContext.WriteLine(result?.ToJson() ?? string.Empty);
                 }
                 catch (Exception ex)
                 {
@@ -84,7 +83,7 @@ namespace Jellyfin.Plugin.MetaShark.Test
                 try
                 {
                     var result = await api.GetMovieAsync(sid, CancellationToken.None);
-                    TestContext.WriteLine(result.ToJson());
+                    TestContext.WriteLine(result?.ToJson() ?? string.Empty);
                 }
                 catch (Exception ex)
                 {
@@ -106,6 +105,12 @@ namespace Jellyfin.Plugin.MetaShark.Test
                 try
                 {
                     var result = await api.GetMovieAsync(sid, CancellationToken.None);
+                    if (result is null)
+                    {
+                        Assert.Fail("GetMovieAsync 返回 null");
+                        return;
+                    }
+
                     Assert.AreEqual<string>("https://img2.doubanio.com/view/celebrity/raw/public/p1598199472.61.jpg", result.Celebrities.First(x => x.Name == "刘陆").Img);
                 }
                 catch (Exception ex)
@@ -127,7 +132,7 @@ namespace Jellyfin.Plugin.MetaShark.Test
                 try
                 {
                     var result = await api.GetCelebritiesBySidAsync(sid, CancellationToken.None);
-                    TestContext.WriteLine(result.ToJson());
+                    TestContext.WriteLine(result?.ToJson() ?? string.Empty);
                 }
                 catch (Exception ex)
                 {
@@ -148,7 +153,7 @@ namespace Jellyfin.Plugin.MetaShark.Test
                 try
                 {
                     var result = await api.GetCelebrityAsync(cid, CancellationToken.None);
-                    TestContext.WriteLine(result.ToJson());
+                    TestContext.WriteLine(result?.ToJson() ?? string.Empty);
                 }
                 catch (Exception ex)
                 {
@@ -169,7 +174,7 @@ namespace Jellyfin.Plugin.MetaShark.Test
                 try
                 {
                     var result = await api.GetCelebrityPhotosAsync(cid, CancellationToken.None);
-                    TestContext.WriteLine(result.ToJson());
+                    TestContext.WriteLine(result?.ToJson() ?? string.Empty);
                 }
                 catch (Exception ex)
                 {
@@ -188,19 +193,19 @@ namespace Jellyfin.Plugin.MetaShark.Test
 
 
             var name = "佩吉·陆 Peggy Lu";
-            var result = api.ParseCelebrityName(name);
+            var result = DoubanApi.ParseCelebrityName(name);
             Assert.AreEqual<string>(result, "佩吉·陆");
 
             name = "Antony Coleman Antony Coleman";
-            result = api.ParseCelebrityName(name);
+            result = DoubanApi.ParseCelebrityName(name);
             Assert.AreEqual<string>(result, "Antony Coleman");
 
             name = "Dick Cook";
-            result = api.ParseCelebrityName(name);
+            result = DoubanApi.ParseCelebrityName(name);
             Assert.AreEqual<string>(result, "Dick Cook");
 
             name = "李凡秀";
-            result = api.ParseCelebrityName(name);
+            result = DoubanApi.ParseCelebrityName(name);
             Assert.AreEqual<string>(result, "李凡秀");
 
         }

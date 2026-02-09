@@ -1,23 +1,27 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Globalization;
-using System.Linq;
-using System.Net.Http;
-using System.Threading;
-using System.Threading.Tasks;
-using Microsoft.AspNetCore.Http;
-using Microsoft.Extensions.Logging;
-using Jellyfin.Plugin.MetaShark.Api;
-using Jellyfin.Plugin.MetaShark.Core;
-using MediaBrowser.Controller.Entities;
-using MediaBrowser.Controller.Library;
-using MediaBrowser.Controller.Providers;
-using MediaBrowser.Model.Entities;
-using MediaBrowser.Model.Providers;
-using TMDbLib.Objects.Find;
+﻿// <copyright file="PersonProvider.cs" company="PlaceholderCompany">
+// Copyright (c) PlaceholderCompany. All rights reserved.
+// </copyright>
 
 namespace Jellyfin.Plugin.MetaShark.Providers
 {
+    using System;
+    using System.Collections.Generic;
+    using System.Globalization;
+    using System.Linq;
+    using System.Net.Http;
+    using System.Threading;
+    using System.Threading.Tasks;
+    using Jellyfin.Plugin.MetaShark.Api;
+    using Jellyfin.Plugin.MetaShark.Core;
+    using MediaBrowser.Controller.Entities;
+    using MediaBrowser.Controller.Library;
+    using MediaBrowser.Controller.Providers;
+    using MediaBrowser.Model.Entities;
+    using MediaBrowser.Model.Providers;
+    using Microsoft.AspNetCore.Http;
+    using Microsoft.Extensions.Logging;
+    using TMDbLib.Objects.Find;
+
     /// <summary>
     /// OddbPersonProvider.
     /// </summary>
@@ -34,13 +38,14 @@ namespace Jellyfin.Plugin.MetaShark.Providers
         /// <inheritdoc />
         public async Task<IEnumerable<RemoteSearchResult>> GetSearchResults(PersonLookupInfo searchInfo, CancellationToken cancellationToken)
         {
+            ArgumentNullException.ThrowIfNull(searchInfo);
             this.Log($"GetPersonSearchResults of [name]: {searchInfo.Name}");
 
             var result = new List<RemoteSearchResult>();
             var cid = searchInfo.GetProviderId(DoubanProviderId);
             if (!string.IsNullOrEmpty(cid))
             {
-                var celebrity = await this._doubanApi.GetCelebrityAsync(cid, cancellationToken).ConfigureAwait(false);
+                var celebrity = await this.DoubanApi.GetCelebrityAsync(cid, cancellationToken).ConfigureAwait(false);
                 if (celebrity != null)
                 {
                     result.Add(new RemoteSearchResult
@@ -49,17 +54,14 @@ namespace Jellyfin.Plugin.MetaShark.Providers
                         ProviderIds = new Dictionary<string, string> { { DoubanProviderId, celebrity.Id } },
                         ImageUrl = this.GetProxyImageUrl(celebrity.Img),
                         Name = celebrity.Name,
-                    }
-                    );
+                    });
 
                     return result;
                 }
             }
 
-
-
-            var res = await this._doubanApi.SearchCelebrityAsync(searchInfo.Name, cancellationToken).ConfigureAwait(false);
-            result.AddRange(res.Take(Configuration.PluginConfiguration.MAX_SEARCH_RESULT).Select(x =>
+            var res = await this.DoubanApi.SearchCelebrityAsync(searchInfo.Name, cancellationToken).ConfigureAwait(false);
+            result.AddRange(res.Take(Configuration.PluginConfiguration.MAXSEARCHRESULT).Select(x =>
             {
                 return new RemoteSearchResult
                 {
@@ -76,14 +78,14 @@ namespace Jellyfin.Plugin.MetaShark.Providers
         /// <inheritdoc />
         public async Task<MetadataResult<Person>> GetMetadata(PersonLookupInfo info, CancellationToken cancellationToken)
         {
+            ArgumentNullException.ThrowIfNull(info);
             var result = new MetadataResult<Person>();
 
             var cid = info.GetProviderId(DoubanProviderId);
             this.Log($"GetPersonMetadata of [name]: {info.Name} [cid]: {cid}");
             if (!string.IsNullOrEmpty(cid))
             {
-
-                var c = await this._doubanApi.GetCelebrityAsync(cid, cancellationToken).ConfigureAwait(false);
+                var c = await this.DoubanApi.GetCelebrityAsync(cid, cancellationToken).ConfigureAwait(false);
                 if (c != null)
                 {
                     var item = new Person
@@ -98,10 +100,12 @@ namespace Jellyfin.Plugin.MetaShark.Providers
                         item.PremiereDate = premiereDate;
                         item.ProductionYear = premiereDate.Year;
                     }
+
                     if (DateTime.TryParseExact(c.Enddate, "yyyy年MM月dd日", null, DateTimeStyles.None, out var endDate))
                     {
                         item.EndDate = endDate;
                     }
+
                     if (!string.IsNullOrWhiteSpace(c.Birthplace))
                     {
                         item.ProductionLocations = new[] { c.Birthplace };
@@ -110,17 +114,19 @@ namespace Jellyfin.Plugin.MetaShark.Providers
                     item.SetProviderId(DoubanProviderId, c.Id);
                     if (!string.IsNullOrEmpty(c.Imdb))
                     {
-                        var newImdbId = await this._imdbApi.CheckPersonNewIDAsync(c.Imdb, cancellationToken).ConfigureAwait(false);
+                        var newImdbId = await this.ImdbApi.CheckPersonNewIDAsync(c.Imdb, cancellationToken).ConfigureAwait(false);
                         if (!string.IsNullOrEmpty(newImdbId))
                         {
                             c.Imdb = newImdbId;
                         }
+
                         item.SetProviderId(MetadataProvider.Imdb, c.Imdb);
+
                         // 通过imdb获取TMDB id
-                        var findResult = await this._tmdbApi.FindByExternalIdAsync(c.Imdb, FindExternalSource.Imdb, info.MetadataLanguage, cancellationToken).ConfigureAwait(false);
+                        var findResult = await this.TmdbApi.FindByExternalIdAsync(c.Imdb, FindExternalSource.Imdb, info.MetadataLanguage, cancellationToken).ConfigureAwait(false);
                         if (findResult?.PersonResults != null && findResult.PersonResults.Count > 0)
                         {
-                            var foundTmdbId = findResult.PersonResults.First().Id.ToString();
+                            var foundTmdbId = findResult.PersonResults.First().Id.ToString(CultureInfo.InvariantCulture);
                             this.Log($"GetPersonMetadata of found tmdb [id]: {foundTmdbId}");
                             item.SetProviderId(MetadataProvider.Tmdb, $"{foundTmdbId}");
                         }
@@ -148,7 +154,7 @@ namespace Jellyfin.Plugin.MetaShark.Providers
         public async Task<MetadataResult<Person>> GetMetadataByTmdb(int personTmdbId, PersonLookupInfo info, CancellationToken cancellationToken)
         {
             var result = new MetadataResult<Person>();
-            var person = await this._tmdbApi.GetPersonAsync(personTmdbId, cancellationToken).ConfigureAwait(false);
+            var person = await this.TmdbApi.GetPersonAsync(personTmdbId, cancellationToken).ConfigureAwait(false);
             if (person != null)
             {
                 var item = new Person
@@ -157,7 +163,7 @@ namespace Jellyfin.Plugin.MetaShark.Providers
                     HomePageUrl = person.Homepage,
                     Overview = person.Biography,
                     PremiereDate = person.Birthday?.ToUniversalTime(),
-                    EndDate = person.Deathday?.ToUniversalTime()
+                    EndDate = person.Deathday?.ToUniversalTime(),
                 };
 
                 if (!string.IsNullOrWhiteSpace(person.PlaceOfBirth))
@@ -179,6 +185,5 @@ namespace Jellyfin.Plugin.MetaShark.Providers
 
             return result;
         }
-
     }
 }

@@ -1,13 +1,17 @@
-using System;
-using System.Collections.Generic;
-using MediaBrowser.Controller.Entities;
-using MediaBrowser.Controller.Entities.Movies;
-using MediaBrowser.Controller.Entities.TV;
-using MediaBrowser.Controller.Providers;
-using MediaBrowser.Model.Entities;
+// <copyright file="DoubanExternalUrlProvider.cs" company="PlaceholderCompany">
+// Copyright (c) PlaceholderCompany. All rights reserved.
+// </copyright>
 
 namespace Jellyfin.Plugin.MetaShark.Providers.ExternalId
 {
+    using System;
+    using System.Collections.Generic;
+    using MediaBrowser.Controller.Entities;
+    using MediaBrowser.Controller.Entities.Movies;
+    using MediaBrowser.Controller.Entities.TV;
+    using MediaBrowser.Controller.Providers;
+    using MediaBrowser.Model.Entities;
+
     /// <summary>
     /// External URLs for Douban.
     /// </summary>

@@ -1,9 +1,15 @@
-using System;
+// <copyright file="TmdbEpisodeGroupMapping.cs" company="PlaceholderCompany">
+// Copyright (c) PlaceholderCompany. All rights reserved.
+// </copyright>
 
 namespace Jellyfin.Plugin.MetaShark.Core
 {
+    using System;
+
     public static class TmdbEpisodeGroupMapping
     {
+        private static readonly char[] LineSeparators = new[] { '\r', '\n' };
+
         public static bool TryGetGroupId(string? mapping, string? tmdbSeriesId, out string groupId)
         {
             groupId = string.Empty;
@@ -12,7 +18,7 @@ namespace Jellyfin.Plugin.MetaShark.Core
                 return false;
             }
 
-            var lines = mapping.Split(new[] { '\r', '\n' }, StringSplitOptions.RemoveEmptyEntries);
+            var lines = mapping.Split(LineSeparators, StringSplitOptions.RemoveEmptyEntries);
             foreach (var line in lines)
             {
                 var trimmed = line.Trim();

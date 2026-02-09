@@ -1,18 +1,28 @@
-using System;
-using System.Collections.Generic;
-using System.Threading;
-using System.Threading.Tasks;
-using MediaBrowser.Controller.Library;
-using MediaBrowser.Model.Tasks;
-using Microsoft.Extensions.Logging;
-using MediaBrowser.Controller.Collections;
+// <copyright file="AutoCreateCollectionTask.cs" company="PlaceholderCompany">
+// Copyright (c) PlaceholderCompany. All rights reserved.
+// </copyright>
 
 namespace Jellyfin.Plugin.MetaShark.ScheduledTasks
 {
-    public class AutoCreateCollectionTask : IScheduledTask
+    using System;
+    using System.Collections.Generic;
+    using System.Threading;
+    using System.Threading.Tasks;
+    using MediaBrowser.Controller.Collections;
+    using MediaBrowser.Controller.Library;
+    using MediaBrowser.Model.Tasks;
+    using Microsoft.Extensions.Logging;
+
+    public sealed class AutoCreateCollectionTask : IScheduledTask, IDisposable
     {
-        private readonly BoxSetManager _boxSetManager;
-        private readonly ILogger _logger;
+        private static readonly Action<ILogger, Exception?> LogStart =
+            LoggerMessage.Define(LogLevel.Information, new EventId(1, nameof(ExecuteAsync)), "开始扫描媒体库自动创建合集...");
+
+        private static readonly Action<ILogger, Exception?> LogCompleted =
+            LoggerMessage.Define(LogLevel.Information, new EventId(2, nameof(ExecuteAsync)), "扫描媒体库自动创建合集执行完成");
+
+        private readonly BoxSetManager boxSetManager;
+        private readonly ILogger logger;
 
         public string Key => $"{Plugin.PluginName}AutoCreateCollection";
 
@@ -29,8 +39,8 @@ namespace Jellyfin.Plugin.MetaShark.ScheduledTasks
         /// <param name="libraryManager">Instance of the <see cref="ILibraryManager"/> interface.</param>
         public AutoCreateCollectionTask(ILoggerFactory loggerFactory, ILibraryManager libraryManager, ICollectionManager collectionManager)
         {
-            _logger = loggerFactory.CreateLogger<AutoCreateCollectionTask>();
-            _boxSetManager = new BoxSetManager(libraryManager, collectionManager, loggerFactory);
+            this.logger = loggerFactory.CreateLogger<AutoCreateCollectionTask>();
+            this.boxSetManager = new BoxSetManager(libraryManager, collectionManager, loggerFactory);
         }
 
         public IEnumerable<TaskTriggerInfo> GetDefaultTriggers()
@@ -38,15 +48,30 @@ namespace Jellyfin.Plugin.MetaShark.ScheduledTasks
             yield return new TaskTriggerInfo
             {
                 Type = TaskTriggerInfo.TriggerDaily,
-                TimeOfDayTicks = TimeSpan.FromHours(0).Ticks
+                TimeOfDayTicks = TimeSpan.FromHours(0).Ticks,
             };
         }
 
         public async Task ExecuteAsync(IProgress<double> progress, CancellationToken cancellationToken)
         {
-            _logger.LogInformation("开始扫描媒体库自动创建合集...");
-            await _boxSetManager.ScanLibrary(progress).ConfigureAwait(false);
-            _logger.LogInformation("扫描媒体库自动创建合集执行完成");
+            ArgumentNullException.ThrowIfNull(progress);
+            LogStart(this.logger, null);
+            await this.boxSetManager.ScanLibrary(progress).ConfigureAwait(false);
+            LogCompleted(this.logger, null);
+        }
+
+        public void Dispose()
+        {
+            this.Dispose(true);
+            GC.SuppressFinalize(this);
+        }
+
+        private void Dispose(bool disposing)
+        {
+            if (disposing)
+            {
+                this.boxSetManager.Dispose();
+            }
         }
     }
 }

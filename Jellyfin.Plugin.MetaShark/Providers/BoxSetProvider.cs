@@ -1,23 +1,27 @@
-using System;
-using System.Collections.Generic;
-using System.Globalization;
-using System.Linq;
-using System.Net.Http;
-using System.Threading;
-using System.Threading.Tasks;
-using Jellyfin.Data.Enums;
-using Jellyfin.Plugin.MetaShark.Api;
-using MediaBrowser.Controller.Entities;
-using MediaBrowser.Controller.Entities.Movies;
-using MediaBrowser.Controller.Library;
-using MediaBrowser.Controller.Providers;
-using MediaBrowser.Model.Entities;
-using MediaBrowser.Model.Providers;
-using Microsoft.AspNetCore.Http;
-using Microsoft.Extensions.Logging;
+// <copyright file="BoxSetProvider.cs" company="PlaceholderCompany">
+// Copyright (c) PlaceholderCompany. All rights reserved.
+// </copyright>
 
 namespace Jellyfin.Plugin.MetaShark.Providers
 {
+    using System;
+    using System.Collections.Generic;
+    using System.Globalization;
+    using System.Linq;
+    using System.Net.Http;
+    using System.Threading;
+    using System.Threading.Tasks;
+    using Jellyfin.Data.Enums;
+    using Jellyfin.Plugin.MetaShark.Api;
+    using MediaBrowser.Controller.Entities;
+    using MediaBrowser.Controller.Entities.Movies;
+    using MediaBrowser.Controller.Library;
+    using MediaBrowser.Controller.Providers;
+    using MediaBrowser.Model.Entities;
+    using MediaBrowser.Model.Providers;
+    using Microsoft.AspNetCore.Http;
+    using Microsoft.Extensions.Logging;
+
     /// <summary>
     /// BoxSet provider powered by TMDb.
     /// </summary>
@@ -33,12 +37,13 @@ namespace Jellyfin.Plugin.MetaShark.Providers
         /// <inheritdoc />
         public async Task<IEnumerable<RemoteSearchResult>> GetSearchResults(BoxSetInfo searchInfo, CancellationToken cancellationToken)
         {
+            ArgumentNullException.ThrowIfNull(searchInfo);
             var tmdbId = Convert.ToInt32(searchInfo.GetProviderId(MetadataProvider.Tmdb), CultureInfo.InvariantCulture);
             var language = searchInfo.MetadataLanguage;
 
             if (tmdbId > 0)
             {
-                var collection = await _tmdbApi.GetCollectionAsync(tmdbId, language, language, cancellationToken).ConfigureAwait(false);
+                var collection = await this.TmdbApi.GetCollectionAsync(tmdbId, language, language, cancellationToken).ConfigureAwait(false);
 
                 if (collection is null)
                 {
@@ -48,12 +53,12 @@ namespace Jellyfin.Plugin.MetaShark.Providers
                 var result = new RemoteSearchResult
                 {
                     Name = collection.Name,
-                    SearchProviderName = Name
+                    SearchProviderName = this.Name,
                 };
 
                 if (collection.Images is not null)
                 {
-                    result.ImageUrl = _tmdbApi.GetPosterUrl(collection.PosterPath);
+                    result.ImageUrl = this.TmdbApi.GetPosterUrl(collection.PosterPath);
                 }
 
                 result.SetProviderId(MetadataProvider.Tmdb, collection.Id.ToString(CultureInfo.InvariantCulture));
@@ -61,7 +66,7 @@ namespace Jellyfin.Plugin.MetaShark.Providers
                 return new[] { result };
             }
 
-            var collectionSearchResults = await _tmdbApi.SearchCollectionAsync(searchInfo.Name, language, cancellationToken).ConfigureAwait(false);
+            var collectionSearchResults = await this.TmdbApi.SearchCollectionAsync(searchInfo.Name, language, cancellationToken).ConfigureAwait(false);
 
             var collections = new RemoteSearchResult[collectionSearchResults.Count];
             for (var i = 0; i < collectionSearchResults.Count; i++)
@@ -70,8 +75,8 @@ namespace Jellyfin.Plugin.MetaShark.Providers
                 var collection = new RemoteSearchResult
                 {
                     Name = result.Name,
-                    SearchProviderName = Name,
-                    ImageUrl = _tmdbApi.GetPosterUrl(result.PosterPath)
+                    SearchProviderName = this.Name,
+                    ImageUrl = this.TmdbApi.GetPosterUrl(result.PosterPath),
                 };
                 collection.SetProviderId(MetadataProvider.Tmdb, result.Id.ToString(CultureInfo.InvariantCulture));
 
@@ -84,17 +89,18 @@ namespace Jellyfin.Plugin.MetaShark.Providers
         /// <inheritdoc />
         public async Task<MetadataResult<BoxSet>> GetMetadata(BoxSetInfo info, CancellationToken cancellationToken)
         {
+            ArgumentNullException.ThrowIfNull(info);
             var tmdbId = Convert.ToInt32(info.GetProviderId(MetadataProvider.Tmdb), CultureInfo.InvariantCulture);
             var language = info.MetadataLanguage;
-            this.Log($"GetBoxSetMetadata of [name]: {info.Name} [tmdbId]: {tmdbId} EnableTmdb: {config.EnableTmdb}");
+            this.Log($"GetBoxSetMetadata of [name]: {info.Name} [tmdbId]: {tmdbId} EnableTmdb: {this.Config.EnableTmdb}");
 
             // We don't already have an Id, need to fetch it
             if (tmdbId <= 0)
             {
                 // ParseName is required here.
                 // Caller provides the filename with extension stripped and NOT the parsed filename
-                var parsedName = _libraryManager.ParseName(info.Name);
-                var searchResults = await _tmdbApi.SearchCollectionAsync(parsedName.Name, language, cancellationToken).ConfigureAwait(false);
+                var parsedName = this.LibraryManager.ParseName(info.Name);
+                var searchResults = await this.TmdbApi.SearchCollectionAsync(parsedName.Name, language, cancellationToken).ConfigureAwait(false);
 
                 if (searchResults is not null && searchResults.Count > 0)
                 {
@@ -110,7 +116,7 @@ namespace Jellyfin.Plugin.MetaShark.Providers
 
             if (tmdbId > 0)
             {
-                var collection = await _tmdbApi.GetCollectionAsync(tmdbId, language, language, cancellationToken).ConfigureAwait(false);
+                var collection = await this.TmdbApi.GetCollectionAsync(tmdbId, language, language, cancellationToken).ConfigureAwait(false);
 
                 if (collection is not null)
                 {
@@ -120,16 +126,17 @@ namespace Jellyfin.Plugin.MetaShark.Providers
                         Overview = collection.Overview,
                     };
 
-                    var oldBotSet = _libraryManager.GetItemList(new InternalItemsQuery
+                    var oldBotSet = this.LibraryManager.GetItemList(new InternalItemsQuery
                     {
                         IncludeItemTypes = new[] { BaseItemKind.BoxSet },
                         CollapseBoxSetItems = false,
-                        Recursive = true
-                    }).Select(b => b as BoxSet).FirstOrDefault(x => x.Name == collection.Name);
+                        Recursive = true,
+                    }).OfType<BoxSet>().FirstOrDefault(x => x.Name == collection.Name);
                     if (oldBotSet != null)
                     {
                         item.LinkedChildren = oldBotSet.LinkedChildren;
                     }
+
                     item.SetProviderId(MetadataProvider.Tmdb, collection.Id.ToString(CultureInfo.InvariantCulture));
 
                     result.HasMetadata = true;
@@ -139,6 +146,5 @@ namespace Jellyfin.Plugin.MetaShark.Providers
 
             return result;
         }
-
     }
 }

@@ -430,7 +430,7 @@ namespace AnitomySharp
                 }
 
                 // e.g. "[2021 OVA]"
-                if(ParseHelper.IsNextTokenContainAnimeType(i)&&!ParseHelper.IsTokenIsolated(i)){}
+                if (ParseHelper.IsNextTokenContainAnimeType(i) && !ParseHelper.IsTokenIsolated(i)) { }
 
                 // TODO may not be necessary
                 // if (!ParseHelper.IsTokenIsolated(i))

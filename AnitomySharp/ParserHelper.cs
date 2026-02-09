@@ -308,7 +308,7 @@ namespace AnitomySharp
         {
             var prevToken = Token.FindPrevToken(_parser.Tokens, pos, Token.TokenFlag.FlagNotDelimiter);
             var nextToken = Token.FindNextToken(_parser.Tokens, pos, Token.TokenFlag.FlagNotDelimiter);
-            if(!Token.InListRange(prevToken, _parser.Tokens)||!Token.InListRange(nextToken, _parser.Tokens)) return false;
+            if (!Token.InListRange(prevToken, _parser.Tokens) || !Token.InListRange(nextToken, _parser.Tokens)) return false;
             if (!IsTokenCategory(nextToken, Token.TokenCategory.Bracket)) return false;
             return KeywordManager.Contains(Element.ElementCategory.ElementAnimeType, _parser.Tokens[prevToken].Content);
         }

@@ -200,7 +200,7 @@ namespace Jellyfin.Plugin.MetaShark.Test
             Assert.AreEqual(parseResult.ParentIndexNumber, 1);
             Assert.AreEqual(parseResult.IndexNumber, 1);
 
-             // 测试 SXXEPXX 格式
+            // 测试 SXXEPXX 格式
             fileName = "神探狄仁杰2 Detective.Dee.Ⅱ.S02EP02.2006.2160p.WEB-DL.x264.AAC-HQC";
             parseResult = NameParser.ParseEpisode(fileName);
             Assert.AreEqual(parseResult.ChineseName, "神探狄仁杰2");

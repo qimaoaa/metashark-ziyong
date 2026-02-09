@@ -151,7 +151,7 @@ namespace AnitomySharp
 
             Add(Element.ElementCategory.ElementOther,
               optionsDefault,
-              new List<string> { "REMASTER", "REMASTERED", "UNCUT", "TS", "VFR", "WIDESCREEN", "WS", "SPURSENGINE","DISC" });
+              new List<string> { "REMASTER", "REMASTERED", "UNCUT", "TS", "VFR", "WIDESCREEN", "WS", "SPURSENGINE", "DISC" });
 
             Add(Element.ElementCategory.ElementReleaseGroup,
               optionsDefault,
