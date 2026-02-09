@@ -319,7 +319,7 @@ namespace Jellyfin.Plugin.MetaShark.Providers
         {
             ArgumentNullException.ThrowIfNull(url);
             var baseUrl = MetaSharkPlugin.Instance?.GetLocalApiBaseUrl().ToString() ?? string.Empty;
-            var proxyBaseUrl = Config.DoubanImageProxyBaseUrl?.ToString();
+            var proxyBaseUrl = Config.DoubanImageProxyBaseUrl;
             if (!string.IsNullOrWhiteSpace(proxyBaseUrl))
             {
                 baseUrl = proxyBaseUrl.TrimEnd('/');
@@ -916,7 +916,7 @@ namespace Jellyfin.Plugin.MetaShark.Providers
         private string GetBaseUrl()
         {
             // 配置优先
-            var proxyBaseUrl = Config.DoubanImageProxyBaseUrl?.ToString();
+            var proxyBaseUrl = Config.DoubanImageProxyBaseUrl;
             if (!string.IsNullOrWhiteSpace(proxyBaseUrl))
             {
                 return proxyBaseUrl.TrimEnd('/');

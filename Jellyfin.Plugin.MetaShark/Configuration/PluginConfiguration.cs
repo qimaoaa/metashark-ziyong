@@ -5,6 +5,7 @@
 namespace Jellyfin.Plugin.MetaShark.Configuration;
 
 using System;
+using System.Diagnostics.CodeAnalysis;
 using System.Net;
 using System.Reflection;
 using MediaBrowser.Model.Plugins;
@@ -42,7 +43,8 @@ public class PluginConfiguration : BasePluginConfiguration
     /// <summary>
     /// Gets or sets 豆瓣图片代理地址.
     /// </summary>
-    public Uri? DoubanImageProxyBaseUrl { get; set; }
+    [SuppressMessage("Design", "CA1056:Uri properties should not be strings", Justification = "XML serialization in Jellyfin cannot handle System.Uri.")]
+    public string DoubanImageProxyBaseUrl { get; set; } = string.Empty;
 
     /// <summary>
     /// Gets or sets a value indicating whether 启用获取tmdb元数据.
