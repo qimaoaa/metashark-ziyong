@@ -132,7 +132,7 @@ namespace Jellyfin.Plugin.MetaShark.Controllers
             {
                 MetadataRefreshMode = MetadataRefreshMode.FullRefresh,
                 ImageRefreshMode = MetadataRefreshMode.FullRefresh,
-                ReplaceAllMetadata = false,
+                ReplaceAllMetadata = true,
                 ReplaceAllImages = false,
             };
 
