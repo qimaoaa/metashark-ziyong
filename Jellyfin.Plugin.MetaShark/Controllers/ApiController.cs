@@ -19,7 +19,6 @@ using MediaBrowser.Model.Entities;
 using MediaBrowser.Model.IO;
 using MediaBrowser.Model.Providers;
 using Microsoft.Extensions.Logging;
-using MetadataProvider = MediaBrowser.Model.Entities.MetadataProvider;
 
 namespace Jellyfin.Plugin.MetaShark.Controllers
 {
@@ -140,7 +139,7 @@ namespace Jellyfin.Plugin.MetaShark.Controllers
             var queued = 0;
             foreach (var item in items)
             {
-                if (!item.ProviderIds.TryGetValue(MetadataProvider.Tmdb.ToString(), out var tmdbId))
+                if (!item.ProviderIds.TryGetValue(MediaBrowser.Model.Entities.MetadataProvider.Tmdb.ToString(), out var tmdbId))
                 {
                     continue;
                 }
