@@ -48,11 +48,6 @@ namespace StringMetric
         private const double JWCOEF = 0.1;
 
         /// <summary>
-        /// Gets the current value of the threshold used for adding the Winkler bonus. The default value is 0.7.
-        /// </summary>
-        private double Threshold { get; }
-
-        /// <summary>
         /// Initializes a new instance of the <see cref="JaroWinkler"/> class.
         /// Creates a new instance with default threshold (0.7).
         /// </summary>
@@ -71,6 +66,11 @@ namespace StringMetric
         {
             this.Threshold = threshold;
         }
+
+        /// <summary>
+        /// Gets the current value of the threshold used for adding the Winkler bonus. The default value is 0.7.
+        /// </summary>
+        private double Threshold { get; }
 
         /// <summary>
         /// Compute Jaro-Winkler similarity.

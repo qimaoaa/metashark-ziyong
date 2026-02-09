@@ -16,8 +16,10 @@ namespace Jellyfin.Plugin.MetaShark.Api
     public class OmdbApi : IDisposable
     {
         public const string DEFAULTAPIKEY = "2c9d9507";
+
         private static readonly Action<ILogger, string, Exception?> LogGetByImdbError =
             LoggerMessage.Define<string>(LogLevel.Error, new EventId(1, nameof(GetByImdbID)), "GetByImdbID error. id: {ImdbId}");
+
         private readonly ILogger<OmdbApi> logger;
         private readonly MemoryCache memoryCache;
         private readonly HttpClient httpClient;
@@ -92,7 +94,7 @@ namespace Jellyfin.Plugin.MetaShark.Api
 
         private static bool IsEnable()
         {
-            return Plugin.Instance?.Configuration.EnableTmdb ?? true;
+            return MetaSharkPlugin.Instance?.Configuration.EnableTmdb ?? true;
         }
     }
 }

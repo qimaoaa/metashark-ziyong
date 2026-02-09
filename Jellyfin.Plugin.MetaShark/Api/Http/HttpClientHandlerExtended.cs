@@ -15,6 +15,7 @@ namespace Jellyfin.Plugin.MetaShark.Api.Http
         {
             // Ignore SSL certificate errors.
             this.ServerCertificateCustomValidationCallback = (message, certificate2, arg3, arg4) => true;
+            this.CheckCertificateRevocationList = true;
             this.AutomaticDecompression = DecompressionMethods.GZip | DecompressionMethods.Deflate;
             this.CookieContainer = new CookieContainer();
             this.UseCookies = true;

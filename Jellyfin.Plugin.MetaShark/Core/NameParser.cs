@@ -32,6 +32,19 @@ namespace Jellyfin.Plugin.MetaShark.Core
 
         private static readonly Regex ResolutionReg = new Regex(@"\d{3,4}x\d{3,4}", RegexOptions.Compiled | RegexOptions.IgnoreCase);
 
+        private static readonly Regex EpisodePatternReg = new Regex(@"S\d{1,2}E\d{1,3}", RegexOptions.Compiled | RegexOptions.IgnoreCase);
+
+        private static readonly string[] ExtraKeywords =
+        {
+            "MENU",
+            "NCED",
+            "NCOP",
+            "DRAMA",
+            "PV",
+            "BONUS",
+            "EXTRA",
+        };
+
         public static ParseNameResult Parse(string fileName, bool isEpisode = false)
         {
             fileName = NormalizeFileName(fileName);
@@ -156,23 +169,14 @@ namespace Jellyfin.Plugin.MetaShark.Core
                 parseResult.Name = fileName;
             }
 
+            TrySetExtraType(parseResult, fileName, isEpisode);
+
             return parseResult;
         }
 
         public static ParseNameResult ParseEpisode(string fileName)
         {
             return Parse(fileName, true);
-        }
-
-        private static string CleanName(string name)
-        {
-            // 电视剧名称后紧跟季信息时，会附加到名称中，需要去掉
-            name = SeasonSuffixReg.Replace(name, string.Empty);
-
-            // 删除多余的[]/()附加信息
-            name = UnusedReg.Replace(name, string.Empty);
-
-            return name.Replace(".", " ", StringComparison.Ordinal).Trim();
         }
 
         /// <summary>
@@ -212,56 +216,6 @@ namespace Jellyfin.Plugin.MetaShark.Core
             var nameOptions = new Emby.Naming.Common.NamingOptions();
             return new EpisodePathParser(nameOptions)
                 .Parse(path, false);
-        }
-
-        private static int ParseYear(string val)
-        {
-            var match = YearReg.Match(val);
-            if (match.Success && match.Groups.Count > 0)
-            {
-                return match.Groups[0].Value.ToInt();
-            }
-
-            return 0;
-        }
-
-        private static string NormalizeFileName(string fileName)
-        {
-            // 去掉中文集数之间的空格（要不然Anitomy解析不正确）
-            fileName = NormalizeNameReg.Replace(fileName, m => m.Value.Replace(" ", string.Empty, StringComparison.Ordinal));
-
-            return fileName;
-        }
-
-        private static int? ParseChineseOrSpecialIndexNumber(string fileName)
-        {
-            var match = ChineseIndexNumberReg.Match(fileName);
-            if (match.Success && match.Groups.Count > 1)
-            {
-                if (int.TryParse(match.Groups[1].Value, out var indexNumber))
-                {
-                    return indexNumber;
-                }
-
-                var number = Utils.ChineseNumberToInt(match.Groups[1].Value);
-                if (number.HasValue)
-                {
-                    return number;
-                }
-            }
-            else
-            {
-                match = SpecialIndexNumberReg.Match(fileName);
-                if (match.Success && match.Groups.Count > 1)
-                {
-                    if (int.TryParse(match.Groups[1].Value, out var indexNumber))
-                    {
-                        return indexNumber;
-                    }
-                }
-            }
-
-            return null;
         }
 
         public static bool IsSpecialDirectory(string path, bool isDirectory = false)
@@ -330,6 +284,98 @@ namespace Jellyfin.Plugin.MetaShark.Core
             }
 
             return false;
+        }
+
+        private static string CleanName(string name)
+        {
+            // 电视剧名称后紧跟季信息时，会附加到名称中，需要去掉
+            name = SeasonSuffixReg.Replace(name, string.Empty);
+
+            // 删除多余的[]/()附加信息
+            name = UnusedReg.Replace(name, string.Empty);
+
+            return name.Replace(".", " ", StringComparison.Ordinal).Trim();
+        }
+
+        private static int ParseYear(string val)
+        {
+            var match = YearReg.Match(val);
+            if (match.Success && match.Groups.Count > 0)
+            {
+                return match.Groups[0].Value.ToInt();
+            }
+
+            return 0;
+        }
+
+        private static string NormalizeFileName(string fileName)
+        {
+            // 去掉中文集数之间的空格（要不然Anitomy解析不正确）
+            fileName = NormalizeNameReg.Replace(fileName, m => m.Value.Replace(" ", string.Empty, StringComparison.Ordinal));
+
+            return fileName;
+        }
+
+        private static int? ParseChineseOrSpecialIndexNumber(string fileName)
+        {
+            var match = ChineseIndexNumberReg.Match(fileName);
+            if (match.Success && match.Groups.Count > 1)
+            {
+                if (int.TryParse(match.Groups[1].Value, out var indexNumber))
+                {
+                    return indexNumber;
+                }
+
+                var number = Utils.ChineseNumberToInt(match.Groups[1].Value);
+                if (number.HasValue)
+                {
+                    return number;
+                }
+            }
+            else
+            {
+                match = SpecialIndexNumberReg.Match(fileName);
+                if (match.Success && match.Groups.Count > 1)
+                {
+                    if (int.TryParse(match.Groups[1].Value, out var indexNumber))
+                    {
+                        return indexNumber;
+                    }
+                }
+            }
+
+            return null;
+        }
+
+        private static void TrySetExtraType(ParseNameResult parseResult, string fileName, bool isEpisode)
+        {
+            if (!string.IsNullOrEmpty(parseResult.AnimeType))
+            {
+                return;
+            }
+
+            if (!isEpisode && EpisodePatternReg.IsMatch(fileName))
+            {
+                parseResult.AnimeType = "EXTRA";
+                return;
+            }
+
+            var upperFileName = fileName.ToUpperInvariant();
+            if (upperFileName.Contains("VOICE MESSAGE", StringComparison.Ordinal)
+                || upperFileName.Contains("MESSAGE", StringComparison.Ordinal))
+            {
+                parseResult.AnimeType = "MESSAGE";
+                return;
+            }
+
+            foreach (var keyword in ExtraKeywords)
+            {
+                if (upperFileName.Contains(keyword, StringComparison.Ordinal))
+                {
+                    parseResult.AnimeType = keyword;
+                    return;
+                }
+            }
         }
     }
 }

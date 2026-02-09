@@ -33,6 +33,7 @@ namespace Jellyfin.Plugin.MetaShark.Api
         protected override async Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken)
         {
             ArgumentNullException.ThrowIfNull(request);
+
             // Save original request target (before any redirects/rewrites by inner handlers)
             var originalRequestUri = request.RequestUri;
 

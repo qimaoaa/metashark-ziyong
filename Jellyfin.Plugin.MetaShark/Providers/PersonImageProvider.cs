@@ -26,7 +26,7 @@ namespace Jellyfin.Plugin.MetaShark.Providers
         }
 
         /// <inheritdoc />
-        public string Name => Plugin.PluginName;
+        public string Name => MetaSharkPlugin.PluginName;
 
         /// <inheritdoc />
         public bool Supports(BaseItem item) => item is Person;
@@ -43,7 +43,7 @@ namespace Jellyfin.Plugin.MetaShark.Providers
             ArgumentNullException.ThrowIfNull(item);
             var list = new List<RemoteImageInfo>();
             var cid = item.GetProviderId(DoubanProviderId);
-            var metaSource = item.GetMetaSource(Plugin.ProviderId);
+            var metaSource = item.GetMetaSource(MetaSharkPlugin.ProviderId);
             this.Log($"GetImages for item: {item.Name} [metaSource]: {metaSource}");
             if (!string.IsNullOrEmpty(cid))
             {
@@ -53,7 +53,7 @@ namespace Jellyfin.Plugin.MetaShark.Providers
                     list.Add(new RemoteImageInfo
                     {
                         ProviderName = this.Name,
-                        Url = this.GetProxyImageUrl(celebrity.Img),
+                        Url = this.GetProxyImageUrl(new Uri(celebrity.Img, UriKind.Absolute)).ToString(),
                         Type = ImageType.Primary,
                         Language = "zh",
                     });
@@ -71,7 +71,7 @@ namespace Jellyfin.Plugin.MetaShark.Providers
                     list.Add(new RemoteImageInfo
                     {
                         ProviderName = this.Name,
-                        Url = this.GetProxyImageUrl(x.Raw),
+                        Url = this.GetProxyImageUrl(new Uri(x.Raw, UriKind.Absolute)).ToString(),
                         Width = x.Width,
                         Height = x.Height,
                         Type = ImageType.Primary,

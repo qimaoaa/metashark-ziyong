@@ -51,8 +51,11 @@ namespace Jellyfin.Plugin.MetaShark.ScheduledTasks
         /// <summary>
         /// Initializes a new instance of the <see cref="RefreshMetadataTask"/> class.
         /// </summary>
-        public RefreshMetadataTask(ILogger<RefreshMetadataTask> logger, ILibraryManager libraryManager, IProviderManager providerManager,
-        IFileSystem fileSystem)
+        public RefreshMetadataTask(
+            ILogger<RefreshMetadataTask> logger,
+            ILibraryManager libraryManager,
+            IProviderManager providerManager,
+            IFileSystem fileSystem)
         {
             this.logger = logger;
             this.libraryManager = libraryManager;
@@ -64,13 +67,13 @@ namespace Jellyfin.Plugin.MetaShark.ScheduledTasks
         public string Name => "重新刮削失败的影片";
 
         /// <inheritdoc />
-        public string Key => $"{Plugin.PluginName}RefreshMissingMetadata";
+        public string Key => $"{MetaSharkPlugin.PluginName}RefreshMissingMetadata";
 
         /// <inheritdoc />
         public string Description => "重新刮削之前刮削失败的影片.";
 
         /// <inheritdoc />
-        public string Category => Plugin.PluginName;
+        public string Category => MetaSharkPlugin.PluginName;
 
         /// <inheritdoc />
         public IEnumerable<TaskTriggerInfo> GetDefaultTriggers()

@@ -30,7 +30,7 @@ namespace Jellyfin.Plugin.MetaShark.Providers
         }
 
         /// <inheritdoc />
-        public string Name => Plugin.PluginName;
+        public string Name => MetaSharkPlugin.PluginName;
 
         /// <inheritdoc />
         public bool Supports(BaseItem item) => item is Season;
@@ -48,7 +48,7 @@ namespace Jellyfin.Plugin.MetaShark.Providers
             this.Log($"GetSeasonImages for item: {item.Name} number: {item.IndexNumber}");
             var season = (Season)item;
             var series = season.Series;
-            var metaSource = series.GetMetaSource(Plugin.ProviderId);
+            var metaSource = series.GetMetaSource(MetaSharkPlugin.ProviderId);
 
             // get image from douban
             var sid = item.GetProviderId(DoubanProviderId);
@@ -96,12 +96,12 @@ namespace Jellyfin.Plugin.MetaShark.Providers
                 var image = posters[i];
                 remoteImages[i] = new RemoteImageInfo
                 {
-                    Url = this.TmdbApi.GetPosterUrl(image.FilePath),
+                    Url = this.TmdbApi.GetPosterUrl(image.FilePath)?.ToString(),
                     CommunityRating = image.VoteAverage,
                     VoteCount = image.VoteCount,
                     Width = image.Width,
                     Height = image.Height,
-                    Language = this.AdjustImageLanguage(image.Iso_639_1, language),
+                    Language = AdjustImageLanguage(image.Iso_639_1, language),
                     ProviderName = this.Name,
                     Type = ImageType.Primary,
                 };

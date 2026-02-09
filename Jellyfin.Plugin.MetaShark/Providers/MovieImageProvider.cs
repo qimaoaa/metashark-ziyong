@@ -31,7 +31,7 @@ namespace Jellyfin.Plugin.MetaShark.Providers
         }
 
         /// <inheritdoc />
-        public string Name => Plugin.PluginName;
+        public string Name => MetaSharkPlugin.PluginName;
 
         /// <inheritdoc />
         public bool Supports(BaseItem item) => item is Movie;
@@ -49,7 +49,7 @@ namespace Jellyfin.Plugin.MetaShark.Providers
         {
             ArgumentNullException.ThrowIfNull(item);
             var sid = item.GetProviderId(DoubanProviderId);
-            var metaSource = item.GetMetaSource(Plugin.ProviderId);
+            var metaSource = item.GetMetaSource(MetaSharkPlugin.ProviderId);
             this.Log($"GetImages for item: {item.Name} lang: {item.GetPreferredMetadataLanguage()} [metaSource]: {metaSource}");
             if (metaSource != MetaSource.Tmdb && !string.IsNullOrEmpty(sid))
             {
@@ -102,7 +102,7 @@ namespace Jellyfin.Plugin.MetaShark.Providers
                 remoteImages.AddRange(images.Posters.Where(x => x.FilePath == movie.PosterPath).Select(x => new RemoteImageInfo
                 {
                     ProviderName = this.Name,
-                    Url = this.TmdbApi.GetPosterUrl(x.FilePath),
+                    Url = this.TmdbApi.GetPosterUrl(x.FilePath)?.ToString(),
                     Type = ImageType.Primary,
                     CommunityRating = x.VoteAverage,
                     VoteCount = x.VoteCount,
@@ -115,7 +115,7 @@ namespace Jellyfin.Plugin.MetaShark.Providers
                 remoteImages.AddRange(images.Backdrops.Where(x => x.FilePath == movie.BackdropPath).Select(x => new RemoteImageInfo
                 {
                     ProviderName = this.Name,
-                    Url = this.TmdbApi.GetBackdropUrl(x.FilePath),
+                    Url = this.TmdbApi.GetBackdropUrl(x.FilePath)?.ToString(),
                     Type = ImageType.Backdrop,
                     CommunityRating = x.VoteAverage,
                     VoteCount = x.VoteCount,
@@ -128,13 +128,13 @@ namespace Jellyfin.Plugin.MetaShark.Providers
                 remoteImages.AddRange(movie.Images.Logos.Select(x => new RemoteImageInfo
                 {
                     ProviderName = this.Name,
-                    Url = this.TmdbApi.GetLogoUrl(x.FilePath),
+                    Url = this.TmdbApi.GetLogoUrl(x.FilePath)?.ToString(),
                     Type = ImageType.Logo,
                     CommunityRating = x.VoteAverage,
                     VoteCount = x.VoteCount,
                     Width = x.Width,
                     Height = x.Height,
-                    Language = this.AdjustImageLanguage(x.Iso_639_1, language),
+                    Language = AdjustImageLanguage(x.Iso_639_1, language),
                     RatingType = RatingType.Score,
                 }));
 
@@ -165,12 +165,12 @@ namespace Jellyfin.Plugin.MetaShark.Providers
                     this.Log("GetBackdrop from douban sid: {0}", sid);
                     list = photo.Where(x => x.Width >= 1280 && x.Width <= 4096 && x.Width > x.Height * 1.3).Select(x =>
                     {
-                        if (this.Config.EnableDoubanBackdropRaw)
+                        if (Config.EnableDoubanBackdropRaw)
                         {
                             return new RemoteImageInfo
                             {
                                 ProviderName = this.Name,
-                                Url = this.GetProxyImageUrl(x.Raw),
+                                Url = this.GetProxyImageUrl(new Uri(x.Raw, UriKind.Absolute)).ToString(),
                                 Height = x.Height,
                                 Width = x.Width,
                                 Type = ImageType.Backdrop,
@@ -182,7 +182,7 @@ namespace Jellyfin.Plugin.MetaShark.Providers
                             return new RemoteImageInfo
                             {
                                 ProviderName = this.Name,
-                                Url = this.GetProxyImageUrl(x.Large),
+                                Url = this.GetProxyImageUrl(new Uri(x.Large, UriKind.Absolute)).ToString(),
                                 Type = ImageType.Backdrop,
                                 Language = "zh",
                             };
@@ -192,7 +192,7 @@ namespace Jellyfin.Plugin.MetaShark.Providers
             }
 
             // 添加 TheMovieDb 背景图为备选
-            if (this.Config.EnableTmdbBackdrop && !string.IsNullOrEmpty(tmdbId))
+            if (Config.EnableTmdbBackdrop && !string.IsNullOrEmpty(tmdbId))
             {
                 var language = item.GetPreferredMetadataLanguage();
                 var movie = await this.TmdbApi
@@ -205,7 +205,7 @@ namespace Jellyfin.Plugin.MetaShark.Providers
                     list.Add(new RemoteImageInfo
                     {
                         ProviderName = this.Name,
-                        Url = this.TmdbApi.GetBackdropUrl(movie.BackdropPath),
+                        Url = this.TmdbApi.GetBackdropUrl(movie.BackdropPath)?.ToString(),
                         Type = ImageType.Backdrop,
                         Language = language,
                     });
@@ -220,7 +220,7 @@ namespace Jellyfin.Plugin.MetaShark.Providers
             var tmdbId = item.GetProviderId(MetadataProvider.Tmdb);
             var list = new List<RemoteImageInfo>();
             var language = item.GetPreferredMetadataLanguage();
-            if (this.Config.EnableTmdbLogo && !string.IsNullOrEmpty(tmdbId))
+            if (Config.EnableTmdbLogo && !string.IsNullOrEmpty(tmdbId))
             {
                 this.Log("GetLogos from tmdb id: {0}", tmdbId);
                 var images = await this.TmdbApi
@@ -232,13 +232,13 @@ namespace Jellyfin.Plugin.MetaShark.Providers
                     list.AddRange(images.Logos.Select(x => new RemoteImageInfo
                     {
                         ProviderName = this.Name,
-                        Url = this.TmdbApi.GetLogoUrl(x.FilePath),
+                        Url = this.TmdbApi.GetLogoUrl(x.FilePath)?.ToString(),
                         Type = ImageType.Logo,
                         CommunityRating = x.VoteAverage,
                         VoteCount = x.VoteCount,
                         Width = x.Width,
                         Height = x.Height,
-                        Language = this.AdjustImageLanguage(x.Iso_639_1, language),
+                        Language = AdjustImageLanguage(x.Iso_639_1, language),
                         RatingType = RatingType.Score,
                     }));
                 }
@@ -246,7 +246,7 @@ namespace Jellyfin.Plugin.MetaShark.Providers
 
             // TODO：jellyfin 内部判断取哪个图片时，还会默认使用 OrderByLanguageDescending 排序一次，这里排序没用
             //       默认图片优先级是：默认语言 > 无语言 > en > 其他语言
-            return this.AdjustImageLanguagePriority(list, language, alternativeImageLanguage);
+            return AdjustImageLanguagePriority(list, language, alternativeImageLanguage);
         }
     }
 }

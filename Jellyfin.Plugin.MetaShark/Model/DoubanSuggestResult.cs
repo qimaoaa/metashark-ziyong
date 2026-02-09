@@ -2,10 +2,10 @@
 // Copyright (c) PlaceholderCompany. All rights reserved.
 // </copyright>
 
+namespace Jellyfin.Plugin.MetaShark.Model;
+
 using System.Collections.ObjectModel;
 using System.Text.Json.Serialization;
-
-namespace Jellyfin.Plugin.MetaShark.Model;
 
 public class DoubanSuggestResult
 {

@@ -16,14 +16,14 @@ namespace Jellyfin.Plugin.MetaShark.Model
 
     public class ParseNameResult : ItemLookupInfo
     {
+        private string animeType = string.Empty;
+
         public string? ChineseName { get; set; }
 
         /// <summary>
         /// Gets or sets 可能会解析不对，最好只在动画SP中才使用.
         /// </summary>
         public string? EpisodeName { get; set; }
-
-        private string animeType = string.Empty;
 
         public string AnimeType
         {

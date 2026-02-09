@@ -27,15 +27,13 @@ namespace Jellyfin.Plugin.MetaShark.Api
 
     public class TmdbApi : IDisposable
     {
-        private static readonly Action<ILogger, string, Exception?> LogTmdbError =
-            LoggerMessage.Define<string>(LogLevel.Error, new EventId(1, nameof(TmdbApi)), "TMDb request failed in {Operation}");
-
-        public const string DEFAULTAPIKEY = "4219e299c89411838049ab0dab19ebd5";
-        public const string DEFAULTAPIHOST = "api.tmdb.org";
-        private const int CacheDurationInHours = 1;
+        private static readonly int CacheDurationInHours = int.Parse("1", CultureInfo.InvariantCulture);
+        private static readonly string DefaultApiKey = string.Concat("4219e299c89411838049ab0dab19ebd5");
+        private static readonly string DefaultApiHost = string.Concat("api.tmdb.org");
         private readonly ILogger<TmdbApi> logger;
-        private readonly IMemoryCache memoryCache;
+        private readonly MemoryCache memoryCache;
         private readonly TMDbClient tmDbClient;
+        private readonly Action<ILogger, string, Exception?> logTmdbError;
 
         /// <summary>
         /// Initializes a new instance of the <see cref="TmdbApi"/> class.
@@ -44,9 +42,10 @@ namespace Jellyfin.Plugin.MetaShark.Api
         {
             this.logger = loggerFactory.CreateLogger<TmdbApi>();
             this.memoryCache = new MemoryCache(new MemoryCacheOptions());
-            var config = Plugin.Instance?.Configuration;
-            var apiKey = string.IsNullOrEmpty(config?.TmdbApiKey) ? DEFAULTAPIKEY : config.TmdbApiKey;
-            var host = string.IsNullOrEmpty(config?.TmdbHost) ? DEFAULTAPIHOST : config.TmdbHost;
+            this.logTmdbError = LoggerMessage.Define<string>(LogLevel.Error, new EventId(1, nameof(TmdbApi)), "TMDb request failed in {Operation}");
+            var config = MetaSharkPlugin.Instance?.Configuration;
+            var apiKey = string.IsNullOrEmpty(config?.TmdbApiKey) ? DefaultApiKey : config.TmdbApiKey;
+            var host = string.IsNullOrEmpty(config?.TmdbHost) ? DefaultApiHost : config.TmdbHost;
             this.tmDbClient = new TMDbClient(apiKey, true, host, null, config?.GetTmdbWebProxy());
             this.tmDbClient.Timeout = TimeSpan.FromSeconds(10);
 
@@ -64,7 +63,7 @@ namespace Jellyfin.Plugin.MetaShark.Api
         /// <returns>The TMDb movie or null if not found.</returns>
         public async Task<Movie?> GetMovieAsync(int tmdbId, string language, string imageLanguages, CancellationToken cancellationToken)
         {
-            if (!this.IsEnable())
+            if (!IsEnable())
             {
                 return null;
             }
@@ -81,8 +80,8 @@ namespace Jellyfin.Plugin.MetaShark.Api
 
                 movie = await this.tmDbClient.GetMovieAsync(
                     tmdbId,
-                    this.NormalizeLanguage(language),
-                    this.GetImageLanguagesParam(imageLanguages),
+                    NormalizeLanguage(language),
+                    GetImageLanguagesParam(imageLanguages),
                     MovieMethods.Credits | MovieMethods.Releases | MovieMethods.Images | MovieMethods.Keywords | MovieMethods.Videos,
                     cancellationToken).ConfigureAwait(false);
 
@@ -95,12 +94,12 @@ namespace Jellyfin.Plugin.MetaShark.Api
             }
             catch (TaskCanceledException ex) when (!cancellationToken.IsCancellationRequested)
             {
-                LogTmdbError(this.logger, nameof(GetMovieAsync), ex);
+                this.logTmdbError(this.logger, nameof(this.GetMovieAsync), ex);
                 return null;
             }
             catch (HttpRequestException ex)
             {
-                LogTmdbError(this.logger, nameof(GetMovieAsync), ex);
+                this.logTmdbError(this.logger, nameof(this.GetMovieAsync), ex);
                 return null;
             }
             catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
@@ -119,7 +118,7 @@ namespace Jellyfin.Plugin.MetaShark.Api
         /// <returns>The TMDb movie images or null if not found.</returns>
         public async Task<ImagesWithId?> GetMovieImagesAsync(int tmdbId, string language, string imageLanguages, CancellationToken cancellationToken)
         {
-            if (!this.IsEnable())
+            if (!IsEnable())
             {
                 return null;
             }
@@ -136,8 +135,8 @@ namespace Jellyfin.Plugin.MetaShark.Api
 
                 images = await this.tmDbClient.GetMovieImagesAsync(
                     tmdbId,
-                    this.NormalizeLanguage(language),
-                    this.GetImageLanguagesParam(imageLanguages),
+                    NormalizeLanguage(language),
+                    GetImageLanguagesParam(imageLanguages),
                     cancellationToken).ConfigureAwait(false);
 
                 if (images != null)
@@ -149,12 +148,12 @@ namespace Jellyfin.Plugin.MetaShark.Api
             }
             catch (TaskCanceledException ex) when (!cancellationToken.IsCancellationRequested)
             {
-                LogTmdbError(this.logger, nameof(GetMovieImagesAsync), ex);
+                this.logTmdbError(this.logger, nameof(this.GetMovieImagesAsync), ex);
                 return null;
             }
             catch (HttpRequestException ex)
             {
-                LogTmdbError(this.logger, nameof(GetMovieImagesAsync), ex);
+                this.logTmdbError(this.logger, nameof(this.GetMovieImagesAsync), ex);
                 return null;
             }
             catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
@@ -183,8 +182,8 @@ namespace Jellyfin.Plugin.MetaShark.Api
 
             collection = await this.tmDbClient.GetCollectionAsync(
                 tmdbId,
-                this.NormalizeLanguage(language),
-                this.GetImageLanguagesParam(imageLanguages),
+                NormalizeLanguage(language),
+                GetImageLanguagesParam(imageLanguages),
                 CollectionMethods.Images,
                 cancellationToken).ConfigureAwait(false);
 
@@ -206,7 +205,7 @@ namespace Jellyfin.Plugin.MetaShark.Api
         /// <returns>The TMDb tv show information or null if not found.</returns>
         public async Task<TvShow?> GetSeriesAsync(int tmdbId, string language, string imageLanguages, CancellationToken cancellationToken)
         {
-            if (!this.IsEnable())
+            if (!IsEnable())
             {
                 return null;
             }
@@ -223,8 +222,8 @@ namespace Jellyfin.Plugin.MetaShark.Api
 
                 series = await this.tmDbClient.GetTvShowAsync(
                     tmdbId,
-                    language: this.NormalizeLanguage(language),
-                    includeImageLanguage: this.GetImageLanguagesParam(imageLanguages),
+                    language: NormalizeLanguage(language),
+                    includeImageLanguage: GetImageLanguagesParam(imageLanguages),
                     extraMethods: TvShowMethods.Credits | TvShowMethods.Images | TvShowMethods.Keywords | TvShowMethods.ExternalIds | TvShowMethods.Videos | TvShowMethods.ContentRatings | TvShowMethods.EpisodeGroups,
                     cancellationToken: cancellationToken).ConfigureAwait(false);
 
@@ -237,12 +236,12 @@ namespace Jellyfin.Plugin.MetaShark.Api
             }
             catch (TaskCanceledException ex) when (!cancellationToken.IsCancellationRequested)
             {
-                LogTmdbError(this.logger, nameof(GetSeriesAsync), ex);
+                this.logTmdbError(this.logger, nameof(this.GetSeriesAsync), ex);
                 return null;
             }
             catch (HttpRequestException ex)
             {
-                LogTmdbError(this.logger, nameof(GetSeriesAsync), ex);
+                this.logTmdbError(this.logger, nameof(this.GetSeriesAsync), ex);
                 return null;
             }
             catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
@@ -261,7 +260,7 @@ namespace Jellyfin.Plugin.MetaShark.Api
         /// <returns>The TMDb tv show images or null if not found.</returns>
         public async Task<ImagesWithId?> GetSeriesImagesAsync(int tmdbId, string language, string imageLanguages, CancellationToken cancellationToken)
         {
-            if (!this.IsEnable())
+            if (!IsEnable())
             {
                 return null;
             }
@@ -278,8 +277,8 @@ namespace Jellyfin.Plugin.MetaShark.Api
 
                 images = await this.tmDbClient.GetTvShowImagesAsync(
                     tmdbId,
-                    this.NormalizeLanguage(language),
-                    this.GetImageLanguagesParam(imageLanguages),
+                    NormalizeLanguage(language),
+                    GetImageLanguagesParam(imageLanguages),
                     cancellationToken).ConfigureAwait(false);
 
                 if (images != null)
@@ -291,12 +290,12 @@ namespace Jellyfin.Plugin.MetaShark.Api
             }
             catch (TaskCanceledException ex) when (!cancellationToken.IsCancellationRequested)
             {
-                LogTmdbError(this.logger, nameof(GetSeriesImagesAsync), ex);
+                this.logTmdbError(this.logger, nameof(this.GetSeriesImagesAsync), ex);
                 return null;
             }
             catch (HttpRequestException ex)
             {
-                LogTmdbError(this.logger, nameof(GetSeriesImagesAsync), ex);
+                this.logTmdbError(this.logger, nameof(this.GetSeriesImagesAsync), ex);
                 return null;
             }
             catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
@@ -307,7 +306,7 @@ namespace Jellyfin.Plugin.MetaShark.Api
 
         public async Task<TvGroupCollection?> GetSeriesGroupAsync(int tvShowId, string displayOrder, string? language, string? imageLanguages, CancellationToken cancellationToken)
         {
-            if (!this.IsEnable())
+            if (!IsEnable())
             {
                 return null;
             }
@@ -337,7 +336,7 @@ namespace Jellyfin.Plugin.MetaShark.Api
             {
                 await this.EnsureClientConfigAsync().ConfigureAwait(false);
 
-                var normalizedLanguage = this.NormalizeLanguage(language ?? string.Empty);
+                var normalizedLanguage = NormalizeLanguage(language ?? string.Empty);
                 var normalizedImageLanguages = imageLanguages ?? string.Empty;
 
                 var series = await this.GetSeriesAsync(tvShowId, normalizedLanguage, normalizedImageLanguages, cancellationToken)
@@ -363,12 +362,12 @@ namespace Jellyfin.Plugin.MetaShark.Api
             }
             catch (TaskCanceledException ex) when (!cancellationToken.IsCancellationRequested)
             {
-                LogTmdbError(this.logger, nameof(GetSeriesGroupAsync), ex);
+                this.logTmdbError(this.logger, nameof(this.GetSeriesGroupAsync), ex);
                 return null;
             }
             catch (HttpRequestException ex)
             {
-                LogTmdbError(this.logger, nameof(GetSeriesGroupAsync), ex);
+                this.logTmdbError(this.logger, nameof(this.GetSeriesGroupAsync), ex);
                 return null;
             }
             catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
@@ -379,7 +378,7 @@ namespace Jellyfin.Plugin.MetaShark.Api
 
         public async Task<TvGroupCollection?> GetEpisodeGroupByIdAsync(string groupId, string? language, CancellationToken cancellationToken)
         {
-            if (!this.IsEnable() || string.IsNullOrWhiteSpace(groupId))
+            if (!IsEnable() || string.IsNullOrWhiteSpace(groupId))
             {
                 return null;
             }
@@ -394,7 +393,7 @@ namespace Jellyfin.Plugin.MetaShark.Api
             {
                 await this.EnsureClientConfigAsync().ConfigureAwait(false);
 
-                var normalizedLanguage = this.NormalizeLanguage(language ?? string.Empty);
+                var normalizedLanguage = NormalizeLanguage(language ?? string.Empty);
 
                 group = await this.tmDbClient.GetTvEpisodeGroupsAsync(
                     groupId,
@@ -410,12 +409,12 @@ namespace Jellyfin.Plugin.MetaShark.Api
             }
             catch (TaskCanceledException ex) when (!cancellationToken.IsCancellationRequested)
             {
-                LogTmdbError(this.logger, nameof(GetEpisodeGroupByIdAsync), ex);
+                this.logTmdbError(this.logger, nameof(this.GetEpisodeGroupByIdAsync), ex);
                 return null;
             }
             catch (HttpRequestException ex)
             {
-                LogTmdbError(this.logger, nameof(GetEpisodeGroupByIdAsync), ex);
+                this.logTmdbError(this.logger, nameof(this.GetEpisodeGroupByIdAsync), ex);
                 return null;
             }
             catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
@@ -435,7 +434,7 @@ namespace Jellyfin.Plugin.MetaShark.Api
         /// <returns>The TMDb tv season information or null if not found.</returns>
         public async Task<TvSeason?> GetSeasonAsync(int tvShowId, int seasonNumber, string language, string imageLanguages, CancellationToken cancellationToken)
         {
-            if (!this.IsEnable())
+            if (!IsEnable())
             {
                 return null;
             }
@@ -453,8 +452,8 @@ namespace Jellyfin.Plugin.MetaShark.Api
                 season = await this.tmDbClient.GetTvSeasonAsync(
                     tvShowId,
                     seasonNumber,
-                    language: this.NormalizeLanguage(language),
-                    includeImageLanguage: this.GetImageLanguagesParam(imageLanguages),
+                    language: NormalizeLanguage(language),
+                    includeImageLanguage: GetImageLanguagesParam(imageLanguages),
                     extraMethods: TvSeasonMethods.Credits | TvSeasonMethods.Images | TvSeasonMethods.ExternalIds | TvSeasonMethods.Videos,
                     cancellationToken: cancellationToken).ConfigureAwait(false);
 
@@ -465,14 +464,14 @@ namespace Jellyfin.Plugin.MetaShark.Api
             {
                 // 可能网络有问题，缓存一下避免频繁请求
                 this.memoryCache.Set(key, season, TimeSpan.FromSeconds(30));
-                LogTmdbError(this.logger, nameof(GetSeasonAsync), ex);
+                this.logTmdbError(this.logger, nameof(this.GetSeasonAsync), ex);
                 return null;
             }
             catch (HttpRequestException ex)
             {
                 // 可能网络有问题，缓存一下避免频繁请求
                 this.memoryCache.Set(key, season, TimeSpan.FromSeconds(30));
-                LogTmdbError(this.logger, nameof(GetSeasonAsync), ex);
+                this.logTmdbError(this.logger, nameof(this.GetSeasonAsync), ex);
                 return null;
             }
             catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
@@ -493,7 +492,7 @@ namespace Jellyfin.Plugin.MetaShark.Api
         /// <returns>The TMDb tv episode information or null if not found.</returns>
         public async Task<TvEpisode?> GetEpisodeAsync(int tvShowId, int seasonNumber, int episodeNumber, string language, string imageLanguages, CancellationToken cancellationToken)
         {
-            if (!this.IsEnable())
+            if (!IsEnable())
             {
                 return null;
             }
@@ -512,8 +511,8 @@ namespace Jellyfin.Plugin.MetaShark.Api
                     tvShowId,
                     seasonNumber,
                     episodeNumber,
-                    language: this.NormalizeLanguage(language),
-                    includeImageLanguage: this.GetImageLanguagesParam(imageLanguages),
+                    language: NormalizeLanguage(language),
+                    includeImageLanguage: GetImageLanguagesParam(imageLanguages),
                     extraMethods: TvEpisodeMethods.Credits | TvEpisodeMethods.Images | TvEpisodeMethods.ExternalIds | TvEpisodeMethods.Videos,
                     cancellationToken: cancellationToken).ConfigureAwait(false);
 
@@ -526,12 +525,12 @@ namespace Jellyfin.Plugin.MetaShark.Api
             }
             catch (TaskCanceledException ex) when (!cancellationToken.IsCancellationRequested)
             {
-                LogTmdbError(this.logger, nameof(GetEpisodeAsync), ex);
+                this.logTmdbError(this.logger, nameof(this.GetEpisodeAsync), ex);
                 return null;
             }
             catch (HttpRequestException ex)
             {
-                LogTmdbError(this.logger, nameof(GetEpisodeAsync), ex);
+                this.logTmdbError(this.logger, nameof(this.GetEpisodeAsync), ex);
                 return null;
             }
             catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
@@ -548,7 +547,7 @@ namespace Jellyfin.Plugin.MetaShark.Api
         /// <returns>The TMDb person information or null if not found.</returns>
         public async Task<Person?> GetPersonAsync(int personTmdbId, CancellationToken cancellationToken)
         {
-            if (!this.IsEnable())
+            if (!IsEnable())
             {
                 return null;
             }
@@ -577,12 +576,12 @@ namespace Jellyfin.Plugin.MetaShark.Api
             }
             catch (TaskCanceledException ex) when (!cancellationToken.IsCancellationRequested)
             {
-                LogTmdbError(this.logger, nameof(GetPersonAsync), ex);
+                this.logTmdbError(this.logger, nameof(this.GetPersonAsync), ex);
                 return null;
             }
             catch (HttpRequestException ex)
             {
-                LogTmdbError(this.logger, nameof(GetPersonAsync), ex);
+                this.logTmdbError(this.logger, nameof(this.GetPersonAsync), ex);
                 return null;
             }
             catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
@@ -606,7 +605,7 @@ namespace Jellyfin.Plugin.MetaShark.Api
             CancellationToken cancellationToken)
         {
             ArgumentNullException.ThrowIfNull(externalId);
-            if (!this.IsEnable())
+            if (!IsEnable())
             {
                 return null;
             }
@@ -624,7 +623,7 @@ namespace Jellyfin.Plugin.MetaShark.Api
                 result = await this.tmDbClient.FindAsync(
                     source,
                     externalId,
-                    this.NormalizeLanguage(language),
+                    NormalizeLanguage(language),
                     cancellationToken).ConfigureAwait(false);
 
                 if (result != null)
@@ -636,12 +635,12 @@ namespace Jellyfin.Plugin.MetaShark.Api
             }
             catch (TaskCanceledException ex) when (!cancellationToken.IsCancellationRequested)
             {
-                LogTmdbError(this.logger, nameof(FindByExternalIdAsync), ex);
+                this.logTmdbError(this.logger, nameof(this.FindByExternalIdAsync), ex);
                 return null;
             }
             catch (HttpRequestException ex)
             {
-                LogTmdbError(this.logger, nameof(FindByExternalIdAsync), ex);
+                this.logTmdbError(this.logger, nameof(this.FindByExternalIdAsync), ex);
                 return null;
             }
             catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
@@ -659,7 +658,7 @@ namespace Jellyfin.Plugin.MetaShark.Api
         /// <returns>The TMDb tv show information.</returns>
         public async Task<IReadOnlyList<SearchTv>> SearchSeriesAsync(string name, string language, CancellationToken cancellationToken)
         {
-            if (!this.IsEnable())
+            if (!IsEnable())
             {
                 return new List<SearchTv>();
             }
@@ -674,9 +673,9 @@ namespace Jellyfin.Plugin.MetaShark.Api
             {
                 await this.EnsureClientConfigAsync().ConfigureAwait(false);
 
-                var enableAdult = Plugin.Instance?.Configuration?.EnableTmdbAdult ?? false;
+                var enableAdult = MetaSharkPlugin.Instance?.Configuration?.EnableTmdbAdult ?? false;
                 var searchResults = await this.tmDbClient
-                    .SearchTvShowAsync(name, this.NormalizeLanguage(language), includeAdult: enableAdult, cancellationToken: cancellationToken)
+                    .SearchTvShowAsync(name, NormalizeLanguage(language), includeAdult: enableAdult, cancellationToken: cancellationToken)
                     .ConfigureAwait(false);
 
                 if (searchResults.Results.Count > 0)
@@ -708,7 +707,7 @@ namespace Jellyfin.Plugin.MetaShark.Api
         /// <returns>The TMDb person information.</returns>
         public async Task<IReadOnlyList<SearchPerson>> SearchPersonAsync(string name, CancellationToken cancellationToken)
         {
-            if (!this.IsEnable())
+            if (!IsEnable())
             {
                 return new List<SearchPerson>();
             }
@@ -723,7 +722,7 @@ namespace Jellyfin.Plugin.MetaShark.Api
             {
                 await this.EnsureClientConfigAsync().ConfigureAwait(false);
 
-                var enableAdult = Plugin.Instance?.Configuration?.EnableTmdbAdult ?? false;
+                var enableAdult = MetaSharkPlugin.Instance?.Configuration?.EnableTmdbAdult ?? false;
                 var searchResults = await this.tmDbClient
                     .SearchPersonAsync(name, includeAdult: enableAdult, cancellationToken: cancellationToken)
                     .ConfigureAwait(false);
@@ -737,12 +736,12 @@ namespace Jellyfin.Plugin.MetaShark.Api
             }
             catch (TaskCanceledException ex) when (!cancellationToken.IsCancellationRequested)
             {
-                LogTmdbError(this.logger, nameof(SearchPersonAsync), ex);
+                this.logTmdbError(this.logger, nameof(this.SearchPersonAsync), ex);
                 return new List<SearchPerson>();
             }
             catch (HttpRequestException ex)
             {
-                LogTmdbError(this.logger, nameof(SearchPersonAsync), ex);
+                this.logTmdbError(this.logger, nameof(this.SearchPersonAsync), ex);
                 return new List<SearchPerson>();
             }
             catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
@@ -773,7 +772,7 @@ namespace Jellyfin.Plugin.MetaShark.Api
         /// <returns>The TMDb movie information.</returns>
         public async Task<IReadOnlyList<SearchMovie>> SearchMovieAsync(string name, int year, string language, CancellationToken cancellationToken)
         {
-            if (!this.IsEnable())
+            if (!IsEnable())
             {
                 return new List<SearchMovie>();
             }
@@ -788,9 +787,9 @@ namespace Jellyfin.Plugin.MetaShark.Api
             {
                 await this.EnsureClientConfigAsync().ConfigureAwait(false);
 
-                var enableAdult = Plugin.Instance?.Configuration?.EnableTmdbAdult ?? false;
+                var enableAdult = MetaSharkPlugin.Instance?.Configuration?.EnableTmdbAdult ?? false;
                 var searchResults = await this.tmDbClient
-                    .SearchMovieAsync(name, this.NormalizeLanguage(language), includeAdult: enableAdult, year: year, cancellationToken: cancellationToken)
+                    .SearchMovieAsync(name, NormalizeLanguage(language), includeAdult: enableAdult, year: year, cancellationToken: cancellationToken)
                     .ConfigureAwait(false);
 
                 if (searchResults.Results.Count > 0)
@@ -802,12 +801,12 @@ namespace Jellyfin.Plugin.MetaShark.Api
             }
             catch (TaskCanceledException ex) when (!cancellationToken.IsCancellationRequested)
             {
-                LogTmdbError(this.logger, nameof(SearchMovieAsync), ex);
+                this.logTmdbError(this.logger, nameof(this.SearchMovieAsync), ex);
                 return new List<SearchMovie>();
             }
             catch (HttpRequestException ex)
             {
-                LogTmdbError(this.logger, nameof(SearchMovieAsync), ex);
+                this.logTmdbError(this.logger, nameof(this.SearchMovieAsync), ex);
                 return new List<SearchMovie>();
             }
             catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
@@ -825,7 +824,7 @@ namespace Jellyfin.Plugin.MetaShark.Api
         /// <returns>The TMDb collection information.</returns>
         public async Task<IReadOnlyList<SearchCollection>> SearchCollectionAsync(string name, string language, CancellationToken cancellationToken)
         {
-            if (!this.IsEnable())
+            if (!IsEnable())
             {
                 return new List<SearchCollection>();
             }
@@ -841,7 +840,7 @@ namespace Jellyfin.Plugin.MetaShark.Api
                 await this.EnsureClientConfigAsync().ConfigureAwait(false);
 
                 var searchResults = await this.tmDbClient
-                    .SearchCollectionAsync(name, this.NormalizeLanguage(language), cancellationToken: cancellationToken)
+                    .SearchCollectionAsync(name, NormalizeLanguage(language), cancellationToken: cancellationToken)
                     .ConfigureAwait(false);
 
                 if (searchResults.Results.Count > 0)
@@ -853,12 +852,12 @@ namespace Jellyfin.Plugin.MetaShark.Api
             }
             catch (TaskCanceledException ex) when (!cancellationToken.IsCancellationRequested)
             {
-                LogTmdbError(this.logger, nameof(SearchCollectionAsync), ex);
+                this.logTmdbError(this.logger, nameof(this.SearchCollectionAsync), ex);
                 return new List<SearchCollection>();
             }
             catch (HttpRequestException ex)
             {
-                LogTmdbError(this.logger, nameof(SearchCollectionAsync), ex);
+                this.logTmdbError(this.logger, nameof(this.SearchCollectionAsync), ex);
                 return new List<SearchCollection>();
             }
             catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
@@ -872,14 +871,14 @@ namespace Jellyfin.Plugin.MetaShark.Api
         /// </summary>
         /// <param name="posterPath">The relative URL of the poster.</param>
         /// <returns>The absolute URL.</returns>
-        public string? GetPosterUrl(string posterPath)
+        public Uri? GetPosterUrl(string posterPath)
         {
             if (string.IsNullOrEmpty(posterPath))
             {
                 return null;
             }
 
-            return this.tmDbClient.GetImageUrl(this.tmDbClient.Config.Images.PosterSizes[^1], posterPath, true).ToString();
+            return this.tmDbClient.GetImageUrl(this.tmDbClient.Config.Images.PosterSizes[^1], posterPath, true);
         }
 
         /// <summary>
@@ -887,14 +886,14 @@ namespace Jellyfin.Plugin.MetaShark.Api
         /// </summary>
         /// <param name="posterPath">The relative URL of the backdrop image.</param>
         /// <returns>The absolute URL.</returns>
-        public string? GetBackdropUrl(string posterPath)
+        public Uri? GetBackdropUrl(string posterPath)
         {
             if (string.IsNullOrEmpty(posterPath))
             {
                 return null;
             }
 
-            return this.tmDbClient.GetImageUrl(this.tmDbClient.Config.Images.BackdropSizes[^1], posterPath, true).ToString();
+            return this.tmDbClient.GetImageUrl(this.tmDbClient.Config.Images.BackdropSizes[^1], posterPath, true);
         }
 
         /// <summary>
@@ -902,14 +901,14 @@ namespace Jellyfin.Plugin.MetaShark.Api
         /// </summary>
         /// <param name="actorProfilePath">The relative URL of the profile image.</param>
         /// <returns>The absolute URL.</returns>
-        public string? GetProfileUrl(string actorProfilePath)
+        public Uri? GetProfileUrl(string actorProfilePath)
         {
             if (string.IsNullOrEmpty(actorProfilePath))
             {
                 return null;
             }
 
-            return this.tmDbClient.GetImageUrl(this.tmDbClient.Config.Images.ProfileSizes[^1], actorProfilePath, true).ToString();
+            return this.tmDbClient.GetImageUrl(this.tmDbClient.Config.Images.ProfileSizes[^1], actorProfilePath, true);
         }
 
         /// <summary>
@@ -917,24 +916,24 @@ namespace Jellyfin.Plugin.MetaShark.Api
         /// </summary>
         /// <param name="filePath">The relative URL of the still image.</param>
         /// <returns>The absolute URL.</returns>
-        public string? GetStillUrl(string filePath)
+        public Uri? GetStillUrl(string filePath)
         {
             if (string.IsNullOrEmpty(filePath))
             {
                 return null;
             }
 
-            return this.tmDbClient.GetImageUrl(this.tmDbClient.Config.Images.StillSizes[^1], filePath, true).ToString();
+            return this.tmDbClient.GetImageUrl(this.tmDbClient.Config.Images.StillSizes[^1], filePath, true);
         }
 
-        public string? GetLogoUrl(string filePath)
+        public Uri? GetLogoUrl(string filePath)
         {
             if (string.IsNullOrEmpty(filePath))
             {
                 return null;
             }
 
-            return this.tmDbClient.GetImageUrl(this.tmDbClient.Config.Images.LogoSizes[^1], filePath, true).ToString();
+            return this.tmDbClient.GetImageUrl(this.tmDbClient.Config.Images.LogoSizes[^1], filePath, true);
         }
 
         /// <inheritdoc />
@@ -957,17 +956,12 @@ namespace Jellyfin.Plugin.MetaShark.Api
             }
         }
 
-        private Task EnsureClientConfigAsync()
-        {
-            return !this.tmDbClient.HasConfig ? this.tmDbClient.GetConfigAsync() : Task.CompletedTask;
-        }
-
         /// <summary>
         /// Normalizes a language string for use with TMDb's language parameter.
         /// </summary>
         /// <param name="language">The language code.</param>
         /// <returns>The normalized language code.</returns>
-        public string NormalizeLanguage(string language)
+        private static string NormalizeLanguage(string language)
         {
             if (string.IsNullOrEmpty(language))
             {
@@ -987,7 +981,7 @@ namespace Jellyfin.Plugin.MetaShark.Api
             return language;
         }
 
-        public string? GetImageLanguagesParam(string preferredLanguage)
+        private static string? GetImageLanguagesParam(string preferredLanguage)
         {
             if (string.IsNullOrEmpty(preferredLanguage))
             {
@@ -1001,8 +995,10 @@ namespace Jellyfin.Plugin.MetaShark.Api
                 var parts = preferredLanguage.Split(',');
                 foreach (var lang in parts)
                 {
-                    var l = this.NormalizeLanguage(lang);
-                    if (l.Length == 5) // like en-US
+                    var l = NormalizeLanguage(lang);
+
+                    // like en-US
+                    if (l.Length == 5)
                     {
                         // Currently, TMDB supports 2-letter language codes only
                         // They are planning to change this in the future, thus we're
@@ -1026,9 +1022,14 @@ namespace Jellyfin.Plugin.MetaShark.Api
             return string.Join(',', languages);
         }
 
-        private bool IsEnable()
+        private static bool IsEnable()
         {
-            return Plugin.Instance?.Configuration.EnableTmdb ?? true;
+            return MetaSharkPlugin.Instance?.Configuration.EnableTmdb ?? true;
+        }
+
+        private Task EnsureClientConfigAsync()
+        {
+            return !this.tmDbClient.HasConfig ? this.tmDbClient.GetConfigAsync() : Task.CompletedTask;
         }
     }
 }

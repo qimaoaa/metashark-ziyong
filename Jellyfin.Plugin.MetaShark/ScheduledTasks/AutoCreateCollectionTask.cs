@@ -24,14 +24,6 @@ namespace Jellyfin.Plugin.MetaShark.ScheduledTasks
         private readonly BoxSetManager boxSetManager;
         private readonly ILogger logger;
 
-        public string Key => $"{Plugin.PluginName}AutoCreateCollection";
-
-        public string Name => "扫描自动创建合集";
-
-        public string Description => $"扫描媒体库创建合集，需要先在配置中开启获取电影系列信息";
-
-        public string Category => Plugin.PluginName;
-
         /// <summary>
         /// Initializes a new instance of the <see cref="AutoCreateCollectionTask"/> class.
         /// </summary>
@@ -42,6 +34,14 @@ namespace Jellyfin.Plugin.MetaShark.ScheduledTasks
             this.logger = loggerFactory.CreateLogger<AutoCreateCollectionTask>();
             this.boxSetManager = new BoxSetManager(libraryManager, collectionManager, loggerFactory);
         }
+
+        public string Key => $"{MetaSharkPlugin.PluginName}AutoCreateCollection";
+
+        public string Name => "扫描自动创建合集";
+
+        public string Description => $"扫描媒体库创建合集，需要先在配置中开启获取电影系列信息";
+
+        public string Category => MetaSharkPlugin.PluginName;
 
         public IEnumerable<TaskTriggerInfo> GetDefaultTriggers()
         {

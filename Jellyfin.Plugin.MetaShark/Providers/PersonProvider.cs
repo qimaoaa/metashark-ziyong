@@ -33,7 +33,7 @@ namespace Jellyfin.Plugin.MetaShark.Providers
         }
 
         /// <inheritdoc />
-        public string Name => Plugin.PluginName;
+        public string Name => MetaSharkPlugin.PluginName;
 
         /// <inheritdoc />
         public async Task<IEnumerable<RemoteSearchResult>> GetSearchResults(PersonLookupInfo searchInfo, CancellationToken cancellationToken)
@@ -52,7 +52,7 @@ namespace Jellyfin.Plugin.MetaShark.Providers
                     {
                         SearchProviderName = DoubanProviderName,
                         ProviderIds = new Dictionary<string, string> { { DoubanProviderId, celebrity.Id } },
-                        ImageUrl = this.GetProxyImageUrl(celebrity.Img),
+                        ImageUrl = this.GetProxyImageUrl(new Uri(celebrity.Img, UriKind.Absolute)).ToString(),
                         Name = celebrity.Name,
                     });
 
@@ -67,7 +67,7 @@ namespace Jellyfin.Plugin.MetaShark.Providers
                 {
                     SearchProviderName = DoubanProviderName,
                     ProviderIds = new Dictionary<string, string> { { DoubanProviderId, x.Id } },
-                    ImageUrl = this.GetProxyImageUrl(x.Img),
+                    ImageUrl = this.GetProxyImageUrl(new Uri(x.Img, UriKind.Absolute)).ToString(),
                     Name = x.Name,
                 };
             }));

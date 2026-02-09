@@ -63,7 +63,7 @@ namespace Jellyfin.Plugin.MetaShark.Test
             var info = new MediaBrowser.Controller.Entities.Movies.Movie()
             {
                 PreferredMetadataLanguage = "zh",
-                ProviderIds = new Dictionary<string, string> { { MetadataProvider.Tmdb.ToString(), "752" }, { Plugin.ProviderId, MetaSource.Tmdb.ToString() } }
+                ProviderIds = new Dictionary<string, string> { { MetadataProvider.Tmdb.ToString(), "752" }, { MetaSharkPlugin.ProviderId, MetaSource.Tmdb.ToString() } }
             };
             var httpClientFactory = new DefaultHttpClientFactory();
             var libraryManagerStub = new Mock<ILibraryManager>();
@@ -98,7 +98,7 @@ namespace Jellyfin.Plugin.MetaShark.Test
             Task.Run(async () =>
             {
                 var provider = new MovieImageProvider(httpClientFactory, loggerFactory, libraryManagerStub.Object, httpContextAccessorStub.Object, doubanApi, tmdbApi, omdbApi, imdbApi);
-                var result = await provider.GetImageResponse("https://img1.doubanio.com/view/photo/m/public/p2893270877.jpg", CancellationToken.None);
+                var result = await provider.GetImageResponse(new Uri("https://img1.doubanio.com/view/photo/m/public/p2893270877.jpg", UriKind.Absolute), CancellationToken.None);
                 Assert.IsNotNull(result);
 
                 var str = result.ToJson();

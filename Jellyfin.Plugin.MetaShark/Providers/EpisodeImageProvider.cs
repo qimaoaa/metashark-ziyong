@@ -29,7 +29,7 @@ namespace Jellyfin.Plugin.MetaShark.Providers
         }
 
         /// <inheritdoc />
-        public string Name => Plugin.PluginName;
+        public string Name => MetaSharkPlugin.PluginName;
 
         /// <inheritdoc />
         public bool Supports(BaseItem item) => item is Episode;
@@ -82,7 +82,7 @@ namespace Jellyfin.Plugin.MetaShark.Providers
             {
                 result.Add(new RemoteImageInfo
                 {
-                    Url = this.TmdbApi.GetStillUrl(episodeResult.StillPath),
+                    Url = this.TmdbApi.GetStillUrl(episodeResult.StillPath)?.ToString(),
                     CommunityRating = episodeResult.VoteAverage,
                     VoteCount = episodeResult.VoteCount,
                     ProviderName = this.Name,

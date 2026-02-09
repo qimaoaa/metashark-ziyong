@@ -2,12 +2,12 @@
 // Copyright (c) PlaceholderCompany. All rights reserved.
 // </copyright>
 
+namespace Jellyfin.Plugin.MetaShark.Configuration;
+
 using System;
 using System.Net;
 using System.Reflection;
 using MediaBrowser.Model.Plugins;
-
-namespace Jellyfin.Plugin.MetaShark.Configuration;
 
 /// <summary>
 /// Plugin configuration.

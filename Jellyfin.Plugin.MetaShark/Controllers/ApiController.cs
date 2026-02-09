@@ -87,15 +87,15 @@ namespace Jellyfin.Plugin.MetaShark.Controllers
             return new ApiResult(loginInfo.IsLogined ? 1 : 0, loginInfo.Name);
         }
 
+        public Task<Stream> ProxyImage(System.Uri url)
+        {
+            throw new System.NotImplementedException();
+        }
+
         private HttpClient GetHttpClient()
         {
             var client = this.httpClientFactory.CreateClient(NamedClient.Default);
             return client;
-        }
-
-        public Task<Stream> ProxyImage(System.Uri url)
-        {
-            throw new System.NotImplementedException();
         }
     }
 }

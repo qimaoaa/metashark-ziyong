@@ -1,6 +1,8 @@
-// <copyright file="Plugin.cs" company="PlaceholderCompany">
+// <copyright file="MetaSharkPlugin.cs" company="PlaceholderCompany">
 // Copyright (c) PlaceholderCompany. All rights reserved.
 // </copyright>
+
+namespace Jellyfin.Plugin.MetaShark;
 
 using System;
 using System.Collections.Generic;
@@ -13,12 +15,10 @@ using MediaBrowser.Model.Plugins;
 using MediaBrowser.Model.Serialization;
 using Microsoft.AspNetCore.Http;
 
-namespace Jellyfin.Plugin.MetaShark;
-
 /// <summary>
 /// The main plugin.
 /// </summary>
-public class Plugin : BasePlugin<PluginConfiguration>, IHasWebPages
+public class MetaSharkPlugin : BasePlugin<PluginConfiguration>, IHasWebPages
 {
     /// <summary>
     /// Gets the provider name.
@@ -33,27 +33,27 @@ public class Plugin : BasePlugin<PluginConfiguration>, IHasWebPages
     private readonly IServerApplicationHost appHost;
 
     /// <summary>
-    /// Initializes a new instance of the <see cref="Plugin"/> class.
+    /// Initializes a new instance of the <see cref="MetaSharkPlugin"/> class.
     /// </summary>
     /// <param name="applicationPaths">Instance of the <see cref="IApplicationPaths"/> interface.</param>
     /// <param name="xmlSerializer">Instance of the <see cref="IXmlSerializer"/> interface.</param>
-    public Plugin(IServerApplicationHost appHost, IApplicationPaths applicationPaths, IXmlSerializer xmlSerializer)
+    public MetaSharkPlugin(IServerApplicationHost appHost, IApplicationPaths applicationPaths, IXmlSerializer xmlSerializer)
         : base(applicationPaths, xmlSerializer)
     {
         this.appHost = appHost;
-        Plugin.Instance = this;
+        Instance = this;
     }
+
+    /// <summary>
+    /// Gets the current plugin instance.
+    /// </summary>
+    public static MetaSharkPlugin? Instance { get; private set; }
 
     /// <inheritdoc />
     public override string Name => PluginName;
 
     /// <inheritdoc />
     public override Guid Id => Guid.Parse("9A19103F-16F7-4668-BE54-9A1E7A4F7556");
-
-    /// <summary>
-    /// Gets the current plugin instance.
-    /// </summary>
-    public static Plugin? Instance { get; private set; }
 
     /// <inheritdoc />
     public IEnumerable<PluginPageInfo> GetPages()

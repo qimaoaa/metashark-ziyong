@@ -38,6 +38,7 @@ namespace Jellyfin.Plugin.MetaShark.Api
             this.handler = new HttpClientHandler()
             {
                 AllowAutoRedirect = false,
+                CheckCertificateRevocationList = true,
             };
             this.httpClient = new HttpClient(this.handler, disposeHandler: false);
             this.httpClient.Timeout = TimeSpan.FromSeconds(10);
@@ -157,7 +158,7 @@ namespace Jellyfin.Plugin.MetaShark.Api
 
         private static bool IsEnable()
         {
-            return Plugin.Instance?.Configuration.EnableTmdb ?? true;
+            return MetaSharkPlugin.Instance?.Configuration.EnableTmdb ?? true;
         }
     }
 }

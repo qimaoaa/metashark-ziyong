@@ -63,7 +63,7 @@ namespace Jellyfin.Plugin.MetaShark.Test
             var info = new MediaBrowser.Controller.Entities.TV.Series()
             {
                 PreferredMetadataLanguage = "zh",
-                ProviderIds = new Dictionary<string, string> { { MetadataProvider.Tmdb.ToString(), "67534" }, { Plugin.ProviderId, MetaSource.Tmdb.ToString() } }
+                ProviderIds = new Dictionary<string, string> { { MetadataProvider.Tmdb.ToString(), "67534" }, { MetaSharkPlugin.ProviderId, MetaSource.Tmdb.ToString() } }
             };
             var httpClientFactory = new DefaultHttpClientFactory();
             var libraryManagerStub = new Mock<ILibraryManager>();

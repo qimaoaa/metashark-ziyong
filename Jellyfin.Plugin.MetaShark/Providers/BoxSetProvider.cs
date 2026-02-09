@@ -32,7 +32,7 @@ namespace Jellyfin.Plugin.MetaShark.Providers
         {
         }
 
-        public string Name => Plugin.PluginName;
+        public string Name => MetaSharkPlugin.PluginName;
 
         /// <inheritdoc />
         public async Task<IEnumerable<RemoteSearchResult>> GetSearchResults(BoxSetInfo searchInfo, CancellationToken cancellationToken)
@@ -58,7 +58,7 @@ namespace Jellyfin.Plugin.MetaShark.Providers
 
                 if (collection.Images is not null)
                 {
-                    result.ImageUrl = this.TmdbApi.GetPosterUrl(collection.PosterPath);
+                    result.ImageUrl = this.TmdbApi.GetPosterUrl(collection.PosterPath)?.ToString();
                 }
 
                 result.SetProviderId(MetadataProvider.Tmdb, collection.Id.ToString(CultureInfo.InvariantCulture));
@@ -76,7 +76,7 @@ namespace Jellyfin.Plugin.MetaShark.Providers
                 {
                     Name = result.Name,
                     SearchProviderName = this.Name,
-                    ImageUrl = this.TmdbApi.GetPosterUrl(result.PosterPath),
+                    ImageUrl = this.TmdbApi.GetPosterUrl(result.PosterPath)?.ToString(),
                 };
                 collection.SetProviderId(MetadataProvider.Tmdb, result.Id.ToString(CultureInfo.InvariantCulture));
 
@@ -92,7 +92,7 @@ namespace Jellyfin.Plugin.MetaShark.Providers
             ArgumentNullException.ThrowIfNull(info);
             var tmdbId = Convert.ToInt32(info.GetProviderId(MetadataProvider.Tmdb), CultureInfo.InvariantCulture);
             var language = info.MetadataLanguage;
-            this.Log($"GetBoxSetMetadata of [name]: {info.Name} [tmdbId]: {tmdbId} EnableTmdb: {this.Config.EnableTmdb}");
+            this.Log($"GetBoxSetMetadata of [name]: {info.Name} [tmdbId]: {tmdbId} EnableTmdb: {Config.EnableTmdb}");
 
             // We don't already have an Id, need to fetch it
             if (tmdbId <= 0)
@@ -126,15 +126,16 @@ namespace Jellyfin.Plugin.MetaShark.Providers
                         Overview = collection.Overview,
                     };
 
-                    var oldBotSet = this.LibraryManager.GetItemList(new InternalItemsQuery
+                    var existingItems = this.LibraryManager.GetItemList(new InternalItemsQuery
                     {
                         IncludeItemTypes = new[] { BaseItemKind.BoxSet },
                         CollapseBoxSetItems = false,
                         Recursive = true,
-                    }).OfType<BoxSet>().FirstOrDefault(x => x.Name == collection.Name);
-                    if (oldBotSet != null)
+                    }) ?? Enumerable.Empty<BaseItem>();
+                    var oldBoxSet = existingItems.OfType<BoxSet>().FirstOrDefault(x => x.Name == collection.Name);
+                    if (oldBoxSet != null)
                     {
-                        item.LinkedChildren = oldBotSet.LinkedChildren;
+                        item.LinkedChildren = oldBoxSet.LinkedChildren;
                     }
 
                     item.SetProviderId(MetadataProvider.Tmdb, collection.Id.ToString(CultureInfo.InvariantCulture));

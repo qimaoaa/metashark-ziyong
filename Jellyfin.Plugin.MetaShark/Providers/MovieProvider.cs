@@ -34,7 +34,7 @@ namespace Jellyfin.Plugin.MetaShark.Providers
         {
         }
 
-        public string Name => Plugin.PluginName;
+        public string Name => MetaSharkPlugin.PluginName;
 
         /// <inheritdoc />
         public async Task<IEnumerable<RemoteSearchResult>> GetSearchResults(MovieInfo searchInfo, CancellationToken cancellationToken)
@@ -54,16 +54,16 @@ namespace Jellyfin.Plugin.MetaShark.Providers
                 return new RemoteSearchResult
                 {
                     // 注意：jellyfin 会判断电影所有 provider id 是否有相同的，有相同的值就会认为是同一影片，会被合并不返回，必须保持 provider id 的唯一性
-                    // 这里 Plugin.ProviderId 的值做这么复杂，是为了保持唯一
-                    ProviderIds = new Dictionary<string, string> { { DoubanProviderId, x.Sid }, { Plugin.ProviderId, $"{MetaSource.Douban}_{x.Sid}" } },
-                    ImageUrl = this.GetProxyImageUrl(x.Img),
+                    // 这里 MetaSharkPlugin.ProviderId 的值做这么复杂，是为了保持唯一
+                    ProviderIds = new Dictionary<string, string> { { DoubanProviderId, x.Sid }, { MetaSharkPlugin.ProviderId, $"{MetaSource.Douban}_{x.Sid}" } },
+                    ImageUrl = this.GetProxyImageUrl(new Uri(x.Img, UriKind.Absolute)).ToString(),
                     ProductionYear = x.Year,
                     Name = x.Name,
                 };
             }));
 
             // 从tmdb搜索
-            if (this.Config.EnableTmdbSearch)
+            if (Config.EnableTmdbSearch)
             {
                 var tmdbList = await this.TmdbApi.SearchMovieAsync(searchInfo.Name, searchInfo.MetadataLanguage, cancellationToken).ConfigureAwait(false);
                 result.AddRange(tmdbList.Take(Configuration.PluginConfiguration.MAXSEARCHRESULT).Select(x =>
@@ -71,10 +71,10 @@ namespace Jellyfin.Plugin.MetaShark.Providers
                     return new RemoteSearchResult
                     {
                         // 注意：jellyfin 会判断电影所有 provider id 是否有相同的，有相同的值就会认为是同一影片，会被合并不返回，必须保持 provider id 的唯一性
-                        // 这里 Plugin.ProviderId 的值做这么复杂，是为了保持唯一
-                        ProviderIds = new Dictionary<string, string> { { MetadataProvider.Tmdb.ToString(), x.Id.ToString(CultureInfo.InvariantCulture) }, { Plugin.ProviderId, $"{MetaSource.Tmdb}_{x.Id}" } },
+                        // 这里 MetaSharkPlugin.ProviderId 的值做这么复杂，是为了保持唯一
+                        ProviderIds = new Dictionary<string, string> { { MetadataProvider.Tmdb.ToString(), x.Id.ToString(CultureInfo.InvariantCulture) }, { MetaSharkPlugin.ProviderId, $"{MetaSource.Tmdb}_{x.Id}" } },
                         Name = string.Format(CultureInfo.InvariantCulture, "[TMDB]{0}", x.Title ?? x.OriginalTitle),
-                        ImageUrl = this.TmdbApi.GetPosterUrl(x.PosterPath),
+                        ImageUrl = this.TmdbApi.GetPosterUrl(x.PosterPath)?.ToString(),
                         Overview = x.Overview,
                         ProductionYear = x.ReleaseDate?.Year,
                     };
@@ -87,18 +87,19 @@ namespace Jellyfin.Plugin.MetaShark.Providers
         /// <inheritdoc />
         public async Task<MetadataResult<Movie>> GetMetadata(MovieInfo info, CancellationToken cancellationToken)
         {
-            var fileName = this.GetOriginalFileName(info);
+            ArgumentNullException.ThrowIfNull(info);
+            var fileName = GetOriginalFileName(info);
             var result = new MetadataResult<Movie>();
 
             // 使用刷新元数据时，providerIds会保留旧有值，只有识别/新增才会没值
             var sid = info.GetProviderId(DoubanProviderId);
             var tmdbId = info.GetProviderId(MetadataProvider.Tmdb);
-            var metaSource = info.GetMetaSource(Plugin.ProviderId);
+            var metaSource = info.GetMetaSource(MetaSharkPlugin.ProviderId);
 
             // 注意：会存在元数据有tmdbId，但metaSource没值的情况（之前由TMDB插件刮削导致）
             var hasTmdbMeta = metaSource == MetaSource.Tmdb && !string.IsNullOrEmpty(tmdbId);
             var hasDoubanMeta = metaSource != MetaSource.Tmdb && !string.IsNullOrEmpty(sid);
-            this.Log($"GetMovieMetadata of [name]: {info.Name} [fileName]: {fileName} metaSource: {metaSource} EnableTmdb: {this.Config.EnableTmdb}");
+            this.Log($"GetMovieMetadata of [name]: {info.Name} [fileName]: {fileName} metaSource: {metaSource} EnableTmdb: {Config.EnableTmdb}");
             if (!hasDoubanMeta && !hasTmdbMeta)
             {
                 // 处理extras影片
@@ -110,7 +111,7 @@ namespace Jellyfin.Plugin.MetaShark.Providers
 
                 // 自动扫描搜索匹配元数据
                 sid = await this.GuessByDoubanAsync(info, cancellationToken).ConfigureAwait(false);
-                if (string.IsNullOrEmpty(sid) && this.Config.EnableTmdbMatch)
+                if (string.IsNullOrEmpty(sid) && Config.EnableTmdbMatch)
                 {
                     tmdbId = await this.GuestByTmdbAsync(info, cancellationToken).ConfigureAwait(false);
                     metaSource = MetaSource.Tmdb;
@@ -134,8 +135,8 @@ namespace Jellyfin.Plugin.MetaShark.Providers
 
                 var movie = new Movie
                 {
-                    // 这里 Plugin.ProviderId 的值做这么复杂，是为了保持唯一
-                    ProviderIds = new Dictionary<string, string> { { DoubanProviderId, subject.Sid }, { Plugin.ProviderId, $"{MetaSource.Douban}_{subject.Sid}" } },
+                    // 这里 MetaSharkPlugin.ProviderId 的值做这么复杂，是为了保持唯一
+                    ProviderIds = new Dictionary<string, string> { { DoubanProviderId, subject.Sid }, { MetaSharkPlugin.ProviderId, $"{MetaSource.Douban}_{subject.Sid}" } },
                     Name = subject.Name,
                     OriginalTitle = subject.OriginalName,
                     CommunityRating = subject.Rating,
@@ -182,7 +183,7 @@ namespace Jellyfin.Plugin.MetaShark.Providers
                 }
 
                 // 通过imdb获取电影分级信息
-                if (this.Config.EnableTmdbOfficialRating && !string.IsNullOrEmpty(tmdbId))
+                if (Config.EnableTmdbOfficialRating && !string.IsNullOrEmpty(tmdbId))
                 {
                     var officialRating = await this.GetTmdbOfficialRating(info, tmdbId, cancellationToken).ConfigureAwait(false);
                     if (!string.IsNullOrEmpty(officialRating))
@@ -199,7 +200,7 @@ namespace Jellyfin.Plugin.MetaShark.Providers
                     Name = c.Name,
                     Type = c.RoleType == PersonType.Director ? PersonKind.Director : PersonKind.Actor,
                     Role = c.Role,
-                    ImageUrl = this.GetLocalProxyImageUrl(c.Img),
+                    ImageUrl = GetLocalProxyImageUrl(new Uri(c.Img, UriKind.Absolute)).ToString(),
                     ProviderIds = new Dictionary<string, string> { { DoubanProviderId, c.Id } },
                 }));
 
@@ -247,8 +248,8 @@ namespace Jellyfin.Plugin.MetaShark.Providers
             movie.SetProviderId(MetadataProvider.Tmdb, tmdbId);
             movie.SetProviderId(MetadataProvider.Imdb, movieResult.ImdbId);
 
-            // 这里 Plugin.ProviderId 的值做这么复杂，是为了保持唯一
-            movie.SetProviderId(Plugin.ProviderId, $"{MetaSource.Tmdb}_{tmdbId}");
+            // 这里 MetaSharkPlugin.ProviderId 的值做这么复杂，是为了保持唯一
+            movie.SetProviderId(MetaSharkPlugin.ProviderId, $"{MetaSource.Tmdb}_{tmdbId}");
 
             // 获取电影系列信息
             if (movieResult.BelongsToCollection != null)
@@ -320,7 +321,7 @@ namespace Jellyfin.Plugin.MetaShark.Providers
 
                     if (!string.IsNullOrWhiteSpace(actor.ProfilePath))
                     {
-                        personInfo.ImageUrl = this.TmdbApi.GetProfileUrl(actor.ProfilePath);
+                        personInfo.ImageUrl = this.TmdbApi.GetProfileUrl(actor.ProfilePath)?.ToString();
                     }
 
                     if (actor.Id > 0)
@@ -345,7 +346,7 @@ namespace Jellyfin.Plugin.MetaShark.Providers
                 foreach (var person in item.Credits.Crew)
                 {
                     // Normalize this
-                    var type = this.MapCrewToPersonType(person);
+                    var type = MapCrewToPersonType(person);
 
                     if (!keepTypes.Contains(type, StringComparer.OrdinalIgnoreCase) &&
                             !keepTypes.Contains(person.Job ?? string.Empty, StringComparer.OrdinalIgnoreCase))
@@ -362,7 +363,7 @@ namespace Jellyfin.Plugin.MetaShark.Providers
 
                     if (!string.IsNullOrWhiteSpace(person.ProfilePath))
                     {
-                        personInfo.ImageUrl = this.TmdbApi.GetPosterUrl(person.ProfilePath);
+                        personInfo.ImageUrl = this.TmdbApi.GetPosterUrl(person.ProfilePath)?.ToString();
                     }
 
                     if (person.Id > 0)
@@ -373,6 +374,38 @@ namespace Jellyfin.Plugin.MetaShark.Providers
                     yield return personInfo;
                 }
             }
+        }
+
+        private string? GetTmdbOfficialRatingByData(TMDbLib.Objects.Movies.Movie? movieResult, string preferredCountryCode)
+        {
+            _ = this.Logger;
+            if (movieResult == null || movieResult.Releases?.Countries == null)
+            {
+                return null;
+            }
+
+            var releases = movieResult.Releases.Countries.Where(i => !string.IsNullOrWhiteSpace(i.Certification)).ToList();
+
+            var ourRelease = releases.FirstOrDefault(c => string.Equals(c.Iso_3166_1, preferredCountryCode, StringComparison.OrdinalIgnoreCase));
+            var usRelease = releases.FirstOrDefault(c => string.Equals(c.Iso_3166_1, "US", StringComparison.OrdinalIgnoreCase));
+            var minimumRelease = releases.FirstOrDefault();
+
+            if (ourRelease != null)
+            {
+                var ratingPrefix = string.Equals(preferredCountryCode, "us", StringComparison.OrdinalIgnoreCase) ? string.Empty : preferredCountryCode + "-";
+                var newRating = ratingPrefix + ourRelease.Certification;
+
+                newRating = newRating.Replace("de-", "FSK-", StringComparison.OrdinalIgnoreCase);
+
+                return newRating;
+            }
+
+            if (usRelease != null)
+            {
+                return usRelease.Certification;
+            }
+
+            return minimumRelease?.Certification;
         }
 
         private async Task<SearchCollection?> GetTmdbCollection(MovieInfo info, string tmdbId, CancellationToken cancellationToken)
@@ -395,40 +428,6 @@ namespace Jellyfin.Plugin.MetaShark.Providers
                             .ConfigureAwait(false);
 
             return this.GetTmdbOfficialRatingByData(movieResult, info.MetadataCountryCode);
-        }
-
-        private string? GetTmdbOfficialRatingByData(TMDbLib.Objects.Movies.Movie? movieResult, string preferredCountryCode)
-        {
-            if (movieResult == null || movieResult.Releases?.Countries == null)
-            {
-                return null;
-            }
-
-            var releases = movieResult.Releases.Countries.Where(i => !string.IsNullOrWhiteSpace(i.Certification)).ToList();
-
-            var ourRelease = releases.FirstOrDefault(c => string.Equals(c.Iso_3166_1, preferredCountryCode, StringComparison.OrdinalIgnoreCase));
-            var usRelease = releases.FirstOrDefault(c => string.Equals(c.Iso_3166_1, "US", StringComparison.OrdinalIgnoreCase));
-            var minimumRelease = releases.FirstOrDefault();
-
-            if (ourRelease != null)
-            {
-                var ratingPrefix = string.Equals(preferredCountryCode, "us", StringComparison.OrdinalIgnoreCase) ? string.Empty : preferredCountryCode + "-";
-                var newRating = ratingPrefix + ourRelease.Certification;
-
-                newRating = newRating.Replace("de-", "FSK-", StringComparison.OrdinalIgnoreCase);
-
-                return newRating;
-            }
-            else if (usRelease != null)
-            {
-                return usRelease.Certification;
-            }
-            else if (minimumRelease != null)
-            {
-                return minimumRelease.Certification;
-            }
-
-            return null;
         }
     }
 }

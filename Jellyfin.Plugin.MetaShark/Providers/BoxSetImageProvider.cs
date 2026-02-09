@@ -34,7 +34,7 @@ namespace Jellyfin.Plugin.MetaShark.Providers
         }
 
         /// <inheritdoc />
-        public string Name => Plugin.PluginName;
+        public string Name => MetaSharkPlugin.PluginName;
 
         /// <inheritdoc />
         public bool Supports(BaseItem item)
@@ -80,26 +80,26 @@ namespace Jellyfin.Plugin.MetaShark.Providers
             remoteImages.AddRange(posters.Select(x => new RemoteImageInfo
             {
                 ProviderName = this.Name,
-                Url = this.TmdbApi.GetPosterUrl(x.FilePath),
+                Url = this.TmdbApi.GetPosterUrl(x.FilePath)?.ToString(),
                 Type = ImageType.Primary,
                 CommunityRating = x.VoteAverage,
                 VoteCount = x.VoteCount,
                 Width = x.Width,
                 Height = x.Height,
-                Language = this.AdjustImageLanguage(x.Iso_639_1, language),
+                Language = AdjustImageLanguage(x.Iso_639_1, language),
                 RatingType = RatingType.Score,
             }));
 
             remoteImages.AddRange(backdrops.Select(x => new RemoteImageInfo
             {
                 ProviderName = this.Name,
-                Url = this.TmdbApi.GetBackdropUrl(x.FilePath),
+                Url = this.TmdbApi.GetBackdropUrl(x.FilePath)?.ToString(),
                 Type = ImageType.Backdrop,
                 CommunityRating = x.VoteAverage,
                 VoteCount = x.VoteCount,
                 Width = x.Width,
                 Height = x.Height,
-                Language = this.AdjustImageLanguage(x.Iso_639_1, language),
+                Language = AdjustImageLanguage(x.Iso_639_1, language),
                 RatingType = RatingType.Score,
             }));
 

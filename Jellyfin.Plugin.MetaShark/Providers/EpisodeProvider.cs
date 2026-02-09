@@ -32,7 +32,7 @@ namespace Jellyfin.Plugin.MetaShark.Providers
             this.memoryCache = new MemoryCache(new MemoryCacheOptions());
         }
 
-        public string Name => Plugin.PluginName;
+        public string Name => MetaSharkPlugin.PluginName;
 
         /// <inheritdoc />
         public async Task<IEnumerable<RemoteSearchResult>> GetSearchResults(EpisodeInfo searchInfo, CancellationToken cancellationToken)
@@ -46,13 +46,14 @@ namespace Jellyfin.Plugin.MetaShark.Providers
         public async Task<MetadataResult<Episode>> GetMetadata(EpisodeInfo info, CancellationToken cancellationToken)
         {
             ArgumentNullException.ThrowIfNull(info);
+
             // 刷新元数据四种模式差别：
             // 自动扫描匹配：info的Name、IndexNumber和ParentIndexNumber是从文件名解析出来的，假如命名不规范，就会导致解析出错误值
             // 识别：info的Name、IndexNumber和ParentIndexNumber是从文件名解析出来的，provinceIds有指定选择项的ProvinceId
             // 覆盖所有元数据：info的Name、IndexNumber和ParentIndexNumber是从文件名解析出来的，provinceIds保留所有旧值
             // 搜索缺少的元数据：info的Name、IndexNumber和ParentIndexNumber是从当前的元数据获取，provinceIds保留所有旧值
             var fileName = Path.GetFileName(info.Path);
-            this.Log($"GetEpisodeMetadata of [name]: {info.Name} [fileName]: {fileName} number: {info.IndexNumber} ParentIndexNumber: {info.ParentIndexNumber} IsMissingEpisode: {info.IsMissingEpisode} EnableTmdb: {this.Config.EnableTmdb} DisplayOrder: {info.SeriesDisplayOrder}");
+            this.Log($"GetEpisodeMetadata of [name]: {info.Name} [fileName]: {fileName} number: {info.IndexNumber} ParentIndexNumber: {info.ParentIndexNumber} IsMissingEpisode: {info.IsMissingEpisode} EnableTmdb: {Config.EnableTmdb} DisplayOrder: {info.SeriesDisplayOrder}");
             var result = new MetadataResult<Episode>();
 
             // Allowing this will dramatically increase scan times
@@ -131,6 +132,7 @@ namespace Jellyfin.Plugin.MetaShark.Providers
         public EpisodeInfo FixParseInfo(EpisodeInfo info)
         {
             ArgumentNullException.ThrowIfNull(info);
+
             // 使用 AnitomySharp 进行重新解析，解决 anime 识别错误
             var fileName = Path.GetFileNameWithoutExtension(info.Path) ?? info.Name;
             if (string.IsNullOrEmpty(fileName))
@@ -228,6 +230,51 @@ namespace Jellyfin.Plugin.MetaShark.Providers
             return info;
         }
 
+        public void Dispose()
+        {
+            this.Dispose(true);
+            GC.SuppressFinalize(this);
+        }
+
+        protected virtual void Dispose(bool disposing)
+        {
+            if (disposing)
+            {
+                this.memoryCache.Dispose();
+            }
+        }
+
+        protected int GetVideoFileCount(string? dir)
+        {
+            if (dir == null)
+            {
+                return 0;
+            }
+
+            var cacheKey = $"filecount_{dir}";
+            if (this.memoryCache.TryGetValue<int>(cacheKey, out var videoFilesCount))
+            {
+                return videoFilesCount;
+            }
+
+            var dirInfo = new DirectoryInfo(dir);
+
+            var files = dirInfo.GetFiles();
+            var nameOptions = new Emby.Naming.Common.NamingOptions();
+
+            foreach (var fileInfo in files.Where(f => !f.Attributes.HasFlag(FileAttributes.Hidden)))
+            {
+                if (Emby.Naming.Video.VideoResolver.IsVideoFile(fileInfo.FullName, nameOptions))
+                {
+                    videoFilesCount++;
+                }
+            }
+
+            var expiredOption = new MemoryCacheEntryOptions() { AbsoluteExpirationRelativeToNow = TimeSpan.FromMinutes(1) };
+            this.memoryCache.Set<int>(cacheKey, videoFilesCount, expiredOption);
+            return videoFilesCount;
+        }
+
         private MetadataResult<Episode>? HandleAnimeExtras(EpisodeInfo info)
         {
             // 特典或extra视频可能和正片剧集放在同一目录
@@ -280,51 +327,6 @@ namespace Jellyfin.Plugin.MetaShark.Providers
             // return result;
             // }
             return null;
-        }
-
-        protected int GetVideoFileCount(string? dir)
-        {
-            if (dir == null)
-            {
-                return 0;
-            }
-
-            var cacheKey = $"filecount_{dir}";
-            if (this.memoryCache.TryGetValue<int>(cacheKey, out var videoFilesCount))
-            {
-                return videoFilesCount;
-            }
-
-            var dirInfo = new DirectoryInfo(dir);
-
-            var files = dirInfo.GetFiles();
-            var nameOptions = new Emby.Naming.Common.NamingOptions();
-
-            foreach (var fileInfo in files.Where(f => !f.Attributes.HasFlag(FileAttributes.Hidden)))
-            {
-                if (Emby.Naming.Video.VideoResolver.IsVideoFile(fileInfo.FullName, nameOptions))
-                {
-                    videoFilesCount++;
-                }
-            }
-
-            var expiredOption = new MemoryCacheEntryOptions() { AbsoluteExpirationRelativeToNow = TimeSpan.FromMinutes(1) };
-            this.memoryCache.Set<int>(cacheKey, videoFilesCount, expiredOption);
-            return videoFilesCount;
-        }
-
-        public void Dispose()
-        {
-            this.Dispose(true);
-            GC.SuppressFinalize(this);
-        }
-
-        protected virtual void Dispose(bool disposing)
-        {
-            if (disposing)
-            {
-                this.memoryCache.Dispose();
-            }
         }
     }
 }

@@ -28,6 +28,9 @@ namespace Jellyfin.Plugin.MetaShark.Api
 
     public class DoubanApi : IDisposable
     {
+        public const string HTTPUSERAGENT = "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/93.0.4577.63 Safari/537.36 Edg/93.0.961.44";
+        public const string HTTPREFERER = "https://www.douban.com/";
+
         private static readonly Action<ILogger, string, Exception?> LogCookieAddFailed =
             LoggerMessage.Define<string>(LogLevel.Debug, new EventId(1, nameof(LoadLoadDoubanCookie)), "Failed to add cookie: {ErrorMessage}");
 
@@ -58,15 +61,16 @@ namespace Jellyfin.Plugin.MetaShark.Api
         private static readonly Action<ILogger, Exception?> LogCheckLoginError =
             LoggerMessage.Define(LogLevel.Error, new EventId(10, nameof(CheckLoginAsync)), "CheckLoginAsync error.");
 
-        public const string HTTPUSERAGENT = "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/93.0.4577.63 Safari/537.36 Edg/93.0.961.44";
-        public const string HTTPREFERER = "https://www.douban.com/";
+        private static readonly Action<ILogger, Exception?> LogGetLoginInfoError =
+            LoggerMessage.Define(LogLevel.Error, new EventId(11, nameof(GetLoginInfoAsync)), "GetLoginInfoAsync error.");
+
+        private static readonly object Lock = new object();
         private readonly ILogger<DoubanApi> logger;
         private readonly HttpClient httpClient;
         private readonly HttpClientHandlerExtended httpClientHandler;
         private readonly DoubanSecHandler doubanHandler;
-        private readonly CookieContainer cookieContainer;
-        private readonly IMemoryCache memoryCache;
-        private static readonly object Lock = new object();
+        private readonly MemoryCache memoryCache;
+        private CookieContainer cookieContainer;
         private Regex regId = new Regex(@"/(\d+?)/", RegexOptions.Compiled);
         private Regex regSid = new Regex(@"sid: (\d+?),", RegexOptions.Compiled);
         private Regex regCat = new Regex(@"\[(.+?)\]", RegexOptions.Compiled);
@@ -115,6 +119,7 @@ namespace Jellyfin.Plugin.MetaShark.Api
             this.memoryCache = new MemoryCache(new MemoryCacheOptions());
 
             this.httpClientHandler = new HttpClientHandlerExtended();
+            this.httpClientHandler.CheckCertificateRevocationList = true;
             this.cookieContainer = this.httpClientHandler.CookieContainer;
             this.doubanHandler = new DoubanSecHandler(this.logger) { InnerHandler = this.httpClientHandler };
             this.httpClient = new HttpClient(this.doubanHandler, disposeHandler: false);
@@ -124,55 +129,46 @@ namespace Jellyfin.Plugin.MetaShark.Api
             this.httpClient.DefaultRequestHeaders.Add("Referer", "https://movie.douban.com/");
 
             this.LoadLoadDoubanCookie();
-            if (Plugin.Instance != null)
+            if (MetaSharkPlugin.Instance != null)
             {
-                Plugin.Instance.ConfigurationChanged += (_, _) =>
+                MetaSharkPlugin.Instance.ConfigurationChanged += (_, _) =>
                 {
                     this.LoadLoadDoubanCookie();
                 };
             }
         }
 
-        private void LoadLoadDoubanCookie()
+        public static string ParseCelebrityName(string nameString)
         {
-            var configCookie = Plugin.Instance?.Configuration.DoubanCookies.Trim() ?? string.Empty;
-
-            lock (Lock)
+            if (string.IsNullOrEmpty(nameString))
             {
-                var uri = new Uri("https://douban.com/");
-
-                // 清空旧的cookie
-                var cookies = this.cookieContainer.GetCookies(uri);
-                foreach (Cookie co in cookies)
-                {
-                    co.Expires = DateTime.Now.Subtract(TimeSpan.FromDays(1));
-                }
-
-                // 附加新的cookie
-                if (!string.IsNullOrEmpty(configCookie))
-                {
-                    var arr = configCookie.Split(';');
-                    foreach (var str in arr)
-                    {
-                        var cookieArr = str.Split('=');
-                        if (cookieArr.Length != 2)
-                        {
-                            continue;
-                        }
-
-                        var key = cookieArr[0].Trim();
-                        var value = cookieArr[1].Trim();
-                        try
-                        {
-                            this.cookieContainer.Add(new Cookie(key, value, "/", ".douban.com"));
-                        }
-                        catch (CookieException ex)
-                        {
-                            LogCookieAddFailed(this.logger, ex.Message, ex);
-                        }
-                    }
-                }
+                return string.Empty;
             }
+
+            // 只有中文名情况
+            var idx = nameString.IndexOf(' ', StringComparison.OrdinalIgnoreCase);
+            if (idx < 0)
+            {
+                return nameString.Trim();
+            }
+
+            // 中英名混合情况
+            var firstName = nameString.Substring(0, idx);
+            if (firstName.HasChinese())
+            {
+                return firstName.Trim();
+            }
+
+            // 英文名重复两次的情况
+            var nextIndex = nameString[idx..].IndexOf(firstName, StringComparison.OrdinalIgnoreCase);
+            if (nextIndex >= 0)
+            {
+                nextIndex = idx + nextIndex;
+                return nameString[..nextIndex].Trim();
+            }
+
+            // 只有英文名情况
+            return nameString.Trim();
         }
 
         public async Task<List<DoubanSubject>> SearchMovieAsync(string keyword, CancellationToken cancellationToken)
@@ -203,7 +199,7 @@ namespace Jellyfin.Plugin.MetaShark.Api
                 return searchResult;
             }
 
-            await LimitRequestFrequently().ConfigureAwait(false);
+            await this.LimitRequestFrequently().ConfigureAwait(false);
 
             var encodedKeyword = HttpUtility.UrlEncode(keyword);
             var url = $"https://www.douban.com/search?cat=1002&q={encodedKeyword}";
@@ -283,7 +279,7 @@ namespace Jellyfin.Plugin.MetaShark.Api
                 return list;
             }
 
-            await LimitRequestFrequently().ConfigureAwait(false);
+            await this.LimitRequestFrequently().ConfigureAwait(false);
 
             try
             {
@@ -354,7 +350,7 @@ namespace Jellyfin.Plugin.MetaShark.Api
                 return movie;
             }
 
-            await LimitRequestFrequently().ConfigureAwait(false);
+            await this.LimitRequestFrequently().ConfigureAwait(false);
 
             var url = $"https://movie.douban.com/subject/{sid}/";
             var response = await this.httpClient.GetAsync(new Uri(url), cancellationToken).ConfigureAwait(false);
@@ -456,7 +452,7 @@ namespace Jellyfin.Plugin.MetaShark.Api
                 return celebrities;
             }
 
-            await LimitRequestFrequently().ConfigureAwait(false);
+            await this.LimitRequestFrequently().ConfigureAwait(false);
 
             var list = new List<DoubanCelebrity>();
             var url = $"https://movie.douban.com/subject/{sid}/celebrities";
@@ -631,6 +627,7 @@ namespace Jellyfin.Plugin.MetaShark.Api
             using var handler = new HttpClientHandler()
             {
                 AllowAutoRedirect = false,
+                CheckCertificateRevocationList = true,
             };
             using (var noRedirectClient = new HttpClient(handler, disposeHandler: true))
             {
@@ -664,7 +661,7 @@ namespace Jellyfin.Plugin.MetaShark.Api
                 return photos;
             }
 
-            await LimitRequestFrequently().ConfigureAwait(false);
+            await this.LimitRequestFrequently().ConfigureAwait(false);
 
             try
             {
@@ -727,39 +724,6 @@ namespace Jellyfin.Plugin.MetaShark.Api
             }
 
             return list;
-        }
-
-        public static string ParseCelebrityName(string nameString)
-        {
-            if (string.IsNullOrEmpty(nameString))
-            {
-                return string.Empty;
-            }
-
-            // 只有中文名情况
-            var idx = nameString.IndexOf(' ', StringComparison.OrdinalIgnoreCase);
-            if (idx < 0)
-            {
-                return nameString.Trim();
-            }
-
-            // 中英名混合情况
-            var firstName = nameString.Substring(0, idx);
-            if (firstName.HasChinese())
-            {
-                return firstName.Trim();
-            }
-
-            // 英文名重复两次的情况
-            var nextIndex = nameString[idx..].IndexOf(firstName, StringComparison.OrdinalIgnoreCase);
-            if (nextIndex >= 0)
-            {
-                nextIndex = idx + nextIndex;
-                return nameString[..nextIndex].Trim();
-            }
-
-            // 只有英文名情况
-            return nameString.Trim();
         }
 
         public async Task<List<DoubanCelebrity>> SearchCelebrityAsync(string keyword, CancellationToken cancellationToken)
@@ -825,7 +789,7 @@ namespace Jellyfin.Plugin.MetaShark.Api
                 return photos;
             }
 
-            await LimitRequestFrequently().ConfigureAwait(false);
+            await this.LimitRequestFrequently().ConfigureAwait(false);
 
             try
             {
@@ -905,7 +869,15 @@ namespace Jellyfin.Plugin.MetaShark.Api
                     return false;
                 }
             }
-            catch (Exception ex)
+            catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+            {
+                throw;
+            }
+            catch (HttpRequestException ex)
+            {
+                LogCheckLoginError(this.logger, ex);
+            }
+            catch (TaskCanceledException ex)
             {
                 LogCheckLoginError(this.logger, ex);
             }
@@ -922,98 +894,27 @@ namespace Jellyfin.Plugin.MetaShark.Api
                 var response = await this.httpClient.GetAsync(new Uri(url), cancellationToken).ConfigureAwait(false);
                 var requestUrl = response.RequestMessage?.RequestUri?.ToString();
                 var body = await response.Content.ReadAsStringAsync(cancellationToken).ConfigureAwait(false);
-                var loginName = this.Match(body, this.regLoginName).Trim();
+                var loginName = Match(body, this.regLoginName).Trim();
                 loginInfo.Name = loginName;
-                loginInfo.IsLogined = !(requestUrl == null || requestUrl.Contains("accounts.douban.com") || requestUrl.Contains("login") || requestUrl.Contains("sec.douban.com"));
+                loginInfo.IsLogined = !(requestUrl == null
+                    || requestUrl.Contains("accounts.douban.com", StringComparison.OrdinalIgnoreCase)
+                    || requestUrl.Contains("login", StringComparison.OrdinalIgnoreCase)
+                    || requestUrl.Contains("sec.douban.com", StringComparison.OrdinalIgnoreCase));
             }
-            catch (Exception ex)
+            catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
             {
-                this.logger.LogError(ex, "GetLoginInfoAsync error.");
+                throw;
+            }
+            catch (HttpRequestException ex)
+            {
+                LogGetLoginInfoError(this.logger, ex);
+            }
+            catch (TaskCanceledException ex)
+            {
+                LogGetLoginInfoError(this.logger, ex);
             }
 
             return loginInfo;
-        }
-
-        protected async Task LimitRequestFrequently()
-        {
-            if (this.IsEnableAvoidRiskControl())
-            {
-                var configCookie = Plugin.Instance?.Configuration.DoubanCookies.Trim() ?? string.Empty;
-                if (!string.IsNullOrEmpty(configCookie))
-                {
-                    await this.loginedTimeConstraint;
-                }
-                else
-                {
-                    await this.guestTimeConstraint;
-                }
-            }
-            else
-            {
-                await this.defaultTimeConstraint;
-            }
-        }
-
-        private string GetTitle(string body)
-        {
-            var title = string.Empty;
-
-            var keyword = this.Match(body, this.regKeywordMeta);
-            if (!string.IsNullOrEmpty(keyword))
-            {
-                title = keyword.Split(",").FirstOrDefault();
-                if (!string.IsNullOrEmpty(title))
-                {
-                    return title.Trim();
-                }
-            }
-
-            title = this.Match(body, this.regTitle);
-            return title.Replace("(豆瓣)", string.Empty).Trim();
-        }
-
-        private string? GetText(IElement el, string css)
-        {
-            var node = el.QuerySelector(css);
-            if (node != null)
-            {
-                return node.Text();
-            }
-
-            return null;
-        }
-
-        private string? GetAttr(IElement el, string css, string attr)
-        {
-            var node = el.QuerySelector(css);
-            if (node != null)
-            {
-                return node.GetAttribute(attr);
-            }
-
-            return null;
-        }
-
-        private string Match(string text, Regex reg)
-        {
-            var match = reg.Match(text);
-            if (match.Success && match.Groups.Count > 1)
-            {
-                return match.Groups[1].Value;
-            }
-
-            return string.Empty;
-        }
-
-        private string FormatOverview(string intro)
-        {
-            intro = intro.Replace("©豆瓣", string.Empty);
-            return this.regOverviewSpace.Replace(intro, "\n").Trim();
-        }
-
-        private bool IsEnableAvoidRiskControl()
-        {
-            return Plugin.Instance?.Configuration.EnableDoubanAvoidRiskControl ?? false;
         }
 
         public void Dispose()
@@ -1030,6 +931,122 @@ namespace Jellyfin.Plugin.MetaShark.Api
                 this.doubanHandler.Dispose();
                 this.httpClientHandler.Dispose();
                 this.memoryCache.Dispose();
+            }
+        }
+
+        protected async Task LimitRequestFrequently()
+        {
+            if (IsEnableAvoidRiskControl())
+            {
+                var configCookie = MetaSharkPlugin.Instance?.Configuration.DoubanCookies.Trim() ?? string.Empty;
+                if (!string.IsNullOrEmpty(configCookie))
+                {
+                    await this.loginedTimeConstraint;
+                }
+                else
+                {
+                    await this.guestTimeConstraint;
+                }
+            }
+            else
+            {
+                await this.defaultTimeConstraint;
+            }
+        }
+
+        private static string? GetText(IElement el, string css)
+        {
+            var node = el.QuerySelector(css);
+            if (node != null)
+            {
+                return node.Text();
+            }
+
+            return null;
+        }
+
+        private static string? GetAttr(IElement el, string css, string attr)
+        {
+            var node = el.QuerySelector(css);
+            if (node != null)
+            {
+                return node.GetAttribute(attr);
+            }
+
+            return null;
+        }
+
+        private static string Match(string text, Regex reg)
+        {
+            var match = reg.Match(text);
+            if (match.Success && match.Groups.Count > 1)
+            {
+                return match.Groups[1].Value;
+            }
+
+            return string.Empty;
+        }
+
+        private static bool IsEnableAvoidRiskControl()
+        {
+            return MetaSharkPlugin.Instance?.Configuration.EnableDoubanAvoidRiskControl ?? false;
+        }
+
+        private string FormatOverview(string intro)
+        {
+            intro = intro.Replace("©豆瓣", string.Empty, StringComparison.Ordinal);
+            return this.regOverviewSpace.Replace(intro, "\n").Trim();
+        }
+
+        private string GetTitle(string body)
+        {
+            var title = string.Empty;
+
+            var keyword = Match(body, this.regKeywordMeta);
+            if (!string.IsNullOrEmpty(keyword))
+            {
+                title = keyword.Split(",").FirstOrDefault();
+                if (!string.IsNullOrEmpty(title))
+                {
+                    return title.Trim();
+                }
+            }
+
+            title = Match(body, this.regTitle);
+            return title.Replace("(豆瓣)", string.Empty, StringComparison.Ordinal).Trim();
+        }
+
+        private void LoadLoadDoubanCookie()
+        {
+            var configCookie = MetaSharkPlugin.Instance?.Configuration.DoubanCookies.Trim() ?? string.Empty;
+
+            lock (Lock)
+            {
+                this.cookieContainer = new CookieContainer();
+                this.httpClientHandler.CookieContainer = this.cookieContainer;
+                if (!string.IsNullOrEmpty(configCookie))
+                {
+                    var cookieList = configCookie.Split(';');
+                    foreach (var cookie in cookieList)
+                    {
+                        var cookieArr = cookie.Trim().Split('=');
+                        if (cookieArr.Length < 2)
+                        {
+                            continue;
+                        }
+
+                        var key = cookieArr[0].Trim();
+                        var value = cookieArr[1].Trim();
+                        try
+                        {
+                            this.cookieContainer.Add(new Cookie(key, value, "/", ".douban.com"));
+                        }
+                        catch (CookieException ex)
+                        {
+                            LogCookieAddFailed(this.logger, ex.Message, ex);
+                        }
+                    }
+                }
             }
         }
     }

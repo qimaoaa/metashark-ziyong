@@ -31,7 +31,7 @@ namespace Jellyfin.Plugin.MetaShark.Providers
         {
         }
 
-        public string Name => Plugin.PluginName;
+        public string Name => MetaSharkPlugin.PluginName;
 
         /// <inheritdoc />
         public async Task<IEnumerable<RemoteSearchResult>> GetSearchResults(SeasonInfo searchInfo, CancellationToken cancellationToken)
@@ -44,16 +44,17 @@ namespace Jellyfin.Plugin.MetaShark.Providers
         /// <inheritdoc />
         public async Task<MetadataResult<Season>> GetMetadata(SeasonInfo info, CancellationToken cancellationToken)
         {
+            ArgumentNullException.ThrowIfNull(info);
             var result = new MetadataResult<Season>();
 
             // 使用刷新元数据时，之前识别的 seasonNumber 会保留，不会被覆盖
             info.SeriesProviderIds.TryGetValue(MetadataProvider.Tmdb.ToString(), out var seriesTmdbId);
-            info.SeriesProviderIds.TryGetMetaSource(Plugin.ProviderId, out var metaSource);
+            info.SeriesProviderIds.TryGetMetaSource(MetaSharkPlugin.ProviderId, out var metaSource);
             info.SeriesProviderIds.TryGetValue(DoubanProviderId, out var sid);
             var seasonNumber = info.IndexNumber; // S00/Season 00特典目录会为0
             var seasonSid = info.GetProviderId(DoubanProviderId);
             var fileName = Path.GetFileName(info.Path);
-            this.Log($"GetSeasonMetaData of [name]: {info.Name} [fileName]: {fileName} number: {info.IndexNumber} seriesTmdbId: {seriesTmdbId} sid: {sid} metaSource: {metaSource} EnableTmdb: {this.Config.EnableTmdb}");
+            this.Log($"GetSeasonMetaData of [name]: {info.Name} [fileName]: {fileName} number: {info.IndexNumber} seriesTmdbId: {seriesTmdbId} sid: {sid} metaSource: {metaSource} EnableTmdb: {Config.EnableTmdb}");
             if (metaSource != MetaSource.Tmdb && !string.IsNullOrEmpty(sid))
             {
                 // seasonNumber 为 null 有三种情况：
@@ -103,7 +104,7 @@ namespace Jellyfin.Plugin.MetaShark.Providers
                             Name = c.Name,
                             Type = c.RoleType == PersonType.Director ? PersonKind.Director : PersonKind.Actor,
                             Role = c.Role,
-                            ImageUrl = this.GetLocalProxyImageUrl(c.Img),
+                            ImageUrl = GetLocalProxyImageUrl(new Uri(c.Img, UriKind.Absolute)).ToString(),
                             ProviderIds = new Dictionary<string, string> { { DoubanProviderId, c.Id } },
                         }));
 
@@ -155,7 +156,7 @@ namespace Jellyfin.Plugin.MetaShark.Providers
             }
 
             // 从季文件夹名属性格式获取，如 [douban-12345] 或 [doubanid-12345]
-            var fileName = this.GetOriginalFileName(info);
+            var fileName = GetOriginalFileName(info);
             var doubanId = this.RegDoubanIdAttribute.FirstMatchGroup(fileName);
             if (!string.IsNullOrWhiteSpace(doubanId))
             {
@@ -215,7 +216,7 @@ namespace Jellyfin.Plugin.MetaShark.Providers
                 return result;
             }
 
-            if (TmdbEpisodeGroupMapping.TryGetGroupId(this.Config.TmdbEpisodeGroupMap, seriesTmdbId, out var groupId))
+            if (TmdbEpisodeGroupMapping.TryGetGroupId(Config.TmdbEpisodeGroupMap, seriesTmdbId, out var groupId))
             {
                 var group = await this.TmdbApi
                     .GetEpisodeGroupByIdAsync(groupId, info.MetadataLanguage, cancellationToken)
