@@ -4,6 +4,9 @@ on:
   push:
     tags: ["*"]
 
+permissions:
+  contents: write
+
 env:
   dotnet-version: 8.0.x
   python-version: 3.8
