@@ -367,25 +367,15 @@ namespace Jellyfin.Plugin.MetaShark.Providers
                 return result;
             }
 
-            var orderedEpisodes = season.Episodes
-                .Where(e => e.AirDate.HasValue && e.EpisodeNumber > 0)
-                .OrderBy(e => e.EpisodeNumber)
-                .ToList();
-            if (orderedEpisodes.Count == 0)
-            {
-                return result;
-            }
+            var lastEpisodeNumber = season.Episodes
+                .Where(e => e.EpisodeNumber > 0)
+                .Select(e => e.EpisodeNumber)
+                .DefaultIfEmpty(0)
+                .Max();
 
-            var beforeEpisode = orderedEpisodes.FirstOrDefault(e => e.AirDate!.Value >= airDate.Value);
-            if (beforeEpisode != null)
-            {
-                result.AirsBeforeEpisodeNumber = beforeEpisode.EpisodeNumber;
-                return result;
-            }
-
-            var lastEpisodeNumber = orderedEpisodes[^1].EpisodeNumber;
             if (lastEpisodeNumber > 0)
             {
+                // No placement info: append to the end of the target season.
                 result.AirsBeforeEpisodeNumber = lastEpisodeNumber + 1;
             }
 
