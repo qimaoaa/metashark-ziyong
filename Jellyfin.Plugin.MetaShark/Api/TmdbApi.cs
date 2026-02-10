@@ -11,9 +11,12 @@ namespace Jellyfin.Plugin.MetaShark.Api
     using System.Net;
     using System.Net.Http;
     using System.Text;
+    using System.Text.Json;
+    using System.Text.Json.Serialization;
     using System.Threading;
     using System.Threading.Tasks;
     using Jellyfin.Plugin.MetaShark.Configuration;
+    using Jellyfin.Plugin.MetaShark.Model;
     using Microsoft.Extensions.Caching.Memory;
     using Microsoft.Extensions.Logging;
     using TMDbLib.Client;
@@ -30,10 +33,17 @@ namespace Jellyfin.Plugin.MetaShark.Api
         private static readonly int CacheDurationInHours = int.Parse("1", CultureInfo.InvariantCulture);
         private static readonly string DefaultApiKey = string.Concat("4219e299c89411838049ab0dab19ebd5");
         private static readonly string DefaultApiHost = string.Concat("api.tmdb.org");
+        private static readonly JsonSerializerOptions EpisodePlacementJsonOptions = new JsonSerializerOptions
+        {
+            PropertyNameCaseInsensitive = true,
+        };
+
         private readonly ILogger<TmdbApi> logger;
         private readonly MemoryCache memoryCache;
         private readonly TMDbClient tmDbClient;
         private readonly Action<ILogger, string, Exception?> logTmdbError;
+        private readonly string apiKey;
+        private readonly string apiHost;
 
         /// <summary>
         /// Initializes a new instance of the <see cref="TmdbApi"/> class.
@@ -44,9 +54,9 @@ namespace Jellyfin.Plugin.MetaShark.Api
             this.memoryCache = new MemoryCache(new MemoryCacheOptions());
             this.logTmdbError = LoggerMessage.Define<string>(LogLevel.Error, new EventId(1, nameof(TmdbApi)), "TMDb request failed in {Operation}");
             var config = MetaSharkPlugin.Instance?.Configuration;
-            var apiKey = string.IsNullOrEmpty(config?.TmdbApiKey) ? DefaultApiKey : config.TmdbApiKey;
-            var host = string.IsNullOrEmpty(config?.TmdbHost) ? DefaultApiHost : config.TmdbHost;
-            this.tmDbClient = new TMDbClient(apiKey, true, host, null, config?.GetTmdbWebProxy());
+            this.apiKey = string.IsNullOrEmpty(config?.TmdbApiKey) ? DefaultApiKey : config.TmdbApiKey;
+            this.apiHost = string.IsNullOrEmpty(config?.TmdbHost) ? DefaultApiHost : config.TmdbHost;
+            this.tmDbClient = new TMDbClient(this.apiKey, true, this.apiHost, null, config?.GetTmdbWebProxy());
             this.tmDbClient.Timeout = TimeSpan.FromSeconds(10);
 
             // Not really interested in NotFoundException
@@ -531,6 +541,102 @@ namespace Jellyfin.Plugin.MetaShark.Api
             catch (HttpRequestException ex)
             {
                 this.logTmdbError(this.logger, nameof(this.GetEpisodeAsync), ex);
+                return null;
+            }
+            catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+            {
+                throw;
+            }
+        }
+
+        /// <summary>
+        /// Gets TMDb episode placement metadata for specials.
+        /// </summary>
+        /// <param name="tvShowId">The tv show's TMDb id.</param>
+        /// <param name="seasonNumber">The season number (use 0 for specials).</param>
+        /// <param name="episodeNumber">The episode number.</param>
+        /// <param name="language">The episode's language.</param>
+        /// <param name="cancellationToken">The cancellation token.</param>
+        /// <returns>The episode placement metadata or null if not found.</returns>
+        public async Task<TmdbEpisodePlacement?> GetEpisodePlacementAsync(int tvShowId, int seasonNumber, int episodeNumber, string? language, CancellationToken cancellationToken)
+        {
+            if (!IsEnable())
+            {
+                return null;
+            }
+
+            var normalizedLanguage = NormalizeLanguage(language ?? string.Empty);
+            var key = $"episode-placement-{tvShowId.ToString(CultureInfo.InvariantCulture)}-s{seasonNumber.ToString(CultureInfo.InvariantCulture)}e{episodeNumber.ToString(CultureInfo.InvariantCulture)}-{normalizedLanguage}";
+            if (this.memoryCache.TryGetValue(key, out TmdbEpisodePlacement? placement))
+            {
+                return placement;
+            }
+
+            try
+            {
+                var baseHost = this.apiHost.StartsWith("http", StringComparison.OrdinalIgnoreCase)
+                    ? this.apiHost.TrimEnd('/')
+                    : $"https://{this.apiHost.TrimEnd('/')}";
+                var url = new StringBuilder()
+                    .Append(baseHost)
+                    .Append("/3/tv/")
+                    .Append(tvShowId.ToString(CultureInfo.InvariantCulture))
+                    .Append("/season/")
+                    .Append(seasonNumber.ToString(CultureInfo.InvariantCulture))
+                    .Append("/episode/")
+                    .Append(episodeNumber.ToString(CultureInfo.InvariantCulture))
+                    .Append("?api_key=")
+                    .Append(Uri.EscapeDataString(this.apiKey));
+
+                if (!string.IsNullOrWhiteSpace(normalizedLanguage))
+                {
+                    url.Append("&language=").Append(Uri.EscapeDataString(normalizedLanguage));
+                }
+
+                using var handler = new HttpClientHandler();
+                handler.CheckCertificateRevocationList = true;
+                var proxy = MetaSharkPlugin.Instance?.Configuration?.GetTmdbWebProxy();
+                if (proxy != null)
+                {
+                    handler.Proxy = proxy;
+                    handler.UseProxy = true;
+                }
+
+                using var httpClient = new HttpClient(handler, false)
+                {
+                    Timeout = TimeSpan.FromSeconds(10),
+                };
+
+                var requestUri = new Uri(url.ToString(), UriKind.Absolute);
+                using var response = await httpClient.GetAsync(requestUri, cancellationToken).ConfigureAwait(false);
+                if (!response.IsSuccessStatusCode)
+                {
+                    this.memoryCache.Set(key, (TmdbEpisodePlacement?)null, TimeSpan.FromSeconds(30));
+                    return null;
+                }
+
+                var responseStream = await response.Content.ReadAsStreamAsync(cancellationToken).ConfigureAwait(false);
+                using var stream = responseStream;
+                placement = await JsonSerializer.DeserializeAsync<TmdbEpisodePlacement>(
+                    stream,
+                    EpisodePlacementJsonOptions,
+                    cancellationToken).ConfigureAwait(false);
+
+                if (placement != null)
+                {
+                    this.memoryCache.Set(key, placement, TimeSpan.FromHours(CacheDurationInHours));
+                }
+
+                return placement;
+            }
+            catch (TaskCanceledException ex) when (!cancellationToken.IsCancellationRequested)
+            {
+                this.logTmdbError(this.logger, nameof(this.GetEpisodePlacementAsync), ex);
+                return null;
+            }
+            catch (HttpRequestException ex)
+            {
+                this.logTmdbError(this.logger, nameof(this.GetEpisodePlacementAsync), ex);
                 return null;
             }
             catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)

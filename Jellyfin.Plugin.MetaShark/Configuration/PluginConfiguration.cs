@@ -107,6 +107,11 @@ public class PluginConfiguration : BasePluginConfiguration
     public string TmdbEpisodeGroupMap { get; set; } = string.Empty;
 
     /// <summary>
+    /// Gets or sets a value indicating whether specials are placed within seasons when TMDB provides ordering info.
+    /// </summary>
+    public bool EnableSpecialsWithinSeasons { get; set; } = true;
+
+    /// <summary>
     /// Gets or sets 代理服务器类型，0-禁用，1-http，2-https，3-socket5.
     /// </summary>
     public string TmdbProxyType { get; set; } = string.Empty;

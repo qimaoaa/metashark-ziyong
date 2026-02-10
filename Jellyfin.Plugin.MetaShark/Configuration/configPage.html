@@ -146,6 +146,14 @@
                             </label>
                             <div class="fieldDescription">勾选后，会自动创建电影系列合集（和媒体库配置中的<b>自动添加到合集</b>功能冲突，需要先关闭）</div>
                         </div>
+                        <div class="checkboxContainer checkboxContainer-withDescription">
+                            <label class="emby-checkbox-label" for="EnableSpecialsWithinSeasons">
+                                <input id="EnableSpecialsWithinSeasons" name="EnableSpecialsWithinSeasons" type="checkbox"
+                                    is="emby-checkbox" />
+                                <span>特典插入到季内顺序</span>
+                            </label>
+                            <div class="fieldDescription">勾选后，TMDb 提供插入位置时，特典将按季内顺序显示</div>
+                        </div>
                         
                         <div class="inputContainer">
                             <label class="inputLabel inputLabelUnfocused" for="TmdbApiKey">Api Key</label>
@@ -224,6 +232,7 @@
                         document.querySelector('#EnableTmdbLogo').checked = config.EnableTmdbLogo;
                         document.querySelector('#EnableTmdbAdult').checked = config.EnableTmdbAdult;
                         document.querySelector('#EnableTmdbCollection').checked = config.EnableTmdbCollection;
+                        document.querySelector('#EnableSpecialsWithinSeasons').checked = config.EnableSpecialsWithinSeasons;
                         document.querySelector('#EnableTmdbOfficialRating').checked = config.EnableTmdbOfficialRating;
                         document.querySelector('#EnableTmdbTags').checked = config.EnableTmdbTags;
                         document.querySelector('#TmdbApiKey').value = config.TmdbApiKey;
@@ -260,6 +269,7 @@
                         config.EnableTmdbLogo = document.querySelector('#EnableTmdbLogo').checked;
                         config.EnableTmdbAdult = document.querySelector('#EnableTmdbAdult').checked;
                         config.EnableTmdbCollection = document.querySelector('#EnableTmdbCollection').checked;
+                        config.EnableSpecialsWithinSeasons = document.querySelector('#EnableSpecialsWithinSeasons').checked;
                         config.EnableTmdbOfficialRating = document.querySelector('#EnableTmdbOfficialRating').checked;
                         config.EnableTmdbTags = document.querySelector('#EnableTmdbTags').checked;
                         config.TmdbApiKey = document.querySelector('#TmdbApiKey').value;

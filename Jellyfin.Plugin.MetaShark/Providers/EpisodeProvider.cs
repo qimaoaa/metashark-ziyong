@@ -113,6 +113,19 @@ namespace Jellyfin.Plugin.MetaShark.Providers
                 ParentIndexNumber = seasonNumber,
             };
 
+            if (seasonNumber == 0 && Config.EnableSpecialsWithinSeasons)
+            {
+                // Map specials into seasons using TMDb air dates as a fallback.
+                item.AirsBeforeSeasonNumber = await this.GetSpecialAirsBeforeSeasonNumberAsync(
+                    seriesTmdbId.ToInt(),
+                    seasonNumber.Value,
+                    episodeNumber.Value,
+                    episodeResult.AirDate,
+                    info.MetadataLanguage,
+                    info.MetadataLanguage,
+                    cancellationToken).ConfigureAwait(false);
+            }
+
             item.PremiereDate = episodeResult.AirDate;
             item.ProductionYear = episodeResult.AirDate?.Year;
             item.Name = episodeResult.Name;
@@ -273,6 +286,54 @@ namespace Jellyfin.Plugin.MetaShark.Providers
             var expiredOption = new MemoryCacheEntryOptions() { AbsoluteExpirationRelativeToNow = TimeSpan.FromMinutes(1) };
             this.memoryCache.Set<int>(cacheKey, videoFilesCount, expiredOption);
             return videoFilesCount;
+        }
+
+        private async Task<int?> GetSpecialAirsBeforeSeasonNumberAsync(int seriesTmdbId, int seasonNumber, int episodeNumber, DateTime? airDate, string? language, string? imageLanguages, CancellationToken cancellationToken)
+        {
+            var normalizedLanguage = language ?? string.Empty;
+            var normalizedImageLanguages = imageLanguages ?? string.Empty;
+            var placement = await this.TmdbApi
+                .GetEpisodePlacementAsync(seriesTmdbId, seasonNumber, episodeNumber, normalizedLanguage, cancellationToken)
+                .ConfigureAwait(false);
+
+            if (placement?.AirsBeforeSeason.HasValue == true && placement.AirsBeforeSeason.Value > 0)
+            {
+                return placement.AirsBeforeSeason.Value;
+            }
+
+            var series = await this.TmdbApi.GetSeriesAsync(seriesTmdbId, normalizedLanguage, normalizedImageLanguages, cancellationToken)
+                .ConfigureAwait(false);
+            if (series?.Seasons == null)
+            {
+                return null;
+            }
+
+            var seasons = series.Seasons
+                .Where(s => s.SeasonNumber > 0 && s.AirDate.HasValue)
+                .OrderBy(s => s.SeasonNumber)
+                .ToList();
+            if (seasons.Count == 0)
+            {
+                return null;
+            }
+
+            if (placement?.AirsAfterSeason.HasValue == true && placement.AirsAfterSeason.Value > 0)
+            {
+                var nextSeason = seasons.FirstOrDefault(s => s.SeasonNumber > placement.AirsAfterSeason.Value);
+                return nextSeason?.SeasonNumber ?? placement.AirsAfterSeason.Value;
+            }
+
+            if (!airDate.HasValue)
+            {
+                return null;
+            }
+
+            var match = seasons
+                .Where(s => s.AirDate!.Value <= airDate.Value)
+                .OrderByDescending(s => s.SeasonNumber)
+                .FirstOrDefault();
+
+            return match?.SeasonNumber ?? seasons[0].SeasonNumber;
         }
 
         private MetadataResult<Episode>? HandleAnimeExtras(EpisodeInfo info)
