@@ -128,6 +128,15 @@ namespace Jellyfin.Plugin.MetaShark.Providers
                 var placementMode = ResolveSpecialsPlacementMode(seriesTmdbId, seriesDoubanId);
                 SpecialAirsPlacement? placement = null;
 
+                this.Log(
+                    "Special placement mode. seriesTmdbId: {0} doubanId: {1} s{2}e{3} mode: {4} airDate: {5}",
+                    seriesTmdbId,
+                    seriesDoubanId,
+                    seasonNumber,
+                    episodeNumber,
+                    placementMode,
+                    episodeResult.AirDate);
+
                 if (placementMode == SpecialPlacementMode.AirDate)
                 {
                     placement = await this.BuildSpecialPlacementByAirDateAsync(
@@ -147,6 +156,14 @@ namespace Jellyfin.Plugin.MetaShark.Providers
                             info.MetadataLanguage,
                             cancellationToken)
                         .ConfigureAwait(false);
+                }
+                else if (placementMode == SpecialPlacementMode.Last)
+                {
+                    this.Log(
+                        "Special placement skipped (keep in S00). seriesTmdbId: {0} s{1}e{2}",
+                        seriesTmdbId,
+                        seasonNumber,
+                        episodeNumber);
                 }
 
                 if (placement != null)
