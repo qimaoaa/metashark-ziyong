@@ -129,6 +129,13 @@ namespace Jellyfin.Plugin.MetaShark.Providers
                     item.AirsBeforeSeasonNumber = placement.AirsBeforeSeasonNumber;
                     item.AirsBeforeEpisodeNumber = placement.AirsBeforeEpisodeNumber;
                     item.AirsAfterSeasonNumber = placement.AirsAfterSeasonNumber;
+                    this.Log("Special placement result. seriesTmdbId: {0} s{1}e{2} -> beforeSeason: {3} beforeEpisode: {4} afterSeason: {5}",
+                        seriesTmdbId,
+                        seasonNumber,
+                        episodeNumber,
+                        item.AirsBeforeSeasonNumber,
+                        item.AirsBeforeEpisodeNumber,
+                        item.AirsAfterSeasonNumber);
                 }
             }
 
