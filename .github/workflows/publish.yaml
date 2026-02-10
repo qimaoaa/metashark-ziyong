@@ -20,6 +20,8 @@ jobs:
 
     steps:
       - uses: actions/checkout@v3
+        with:
+          submodules: recursive
       - name: Get tags (For CHANGELOG)
         run: git fetch --depth=1 origin +refs/tags/*:refs/tags/*
       - name: Setup dotnet
@@ -45,8 +47,8 @@ jobs:
           echo "APP_NAME=$(echo '${{ github.repository }}' | awk -F '/' '{print $2}')" >> $GITHUB_OUTPUT
       - name: Build
         run: |
-          dotnet restore ${{ env.project }} --no-cache
-          dotnet publish --nologo --no-restore --configuration=Release --framework=net8.0 -p:Version=${{steps.vars.outputs.VERSION}} ${{ env.project }}
+          dotnet restore ${{ env.project }} --no-cache -p:UseLocalJellyfinReferences=true
+          dotnet publish --nologo --no-restore --configuration=Release --framework=net8.0 -p:UseLocalJellyfinReferences=true -p:Version=${{steps.vars.outputs.VERSION}} ${{ env.project }}
           mkdir -p artifacts
           zip -j ./artifacts/${{ env.artifact }}_${{steps.vars.outputs.VERSION}}.zip ./Jellyfin.Plugin.MetaShark/bin/Release/net8.0/Jellyfin.Plugin.MetaShark.dll
       - name: Generate manifest

@@ -11,6 +11,8 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v3
+        with:
+          submodules: recursive
       - uses: actions/setup-dotnet@v3
         id: dotnet
         with:
@@ -19,8 +21,8 @@ jobs:
         run: |
           echo '{"sdk":{"version": "${{ steps.dotnet.outputs.dotnet-version }}"}}' > ./global.json
       - name: Install dependencies
-        run: dotnet restore
+        run: dotnet restore -p:UseLocalJellyfinReferences=true
       - name: Build
-        run: dotnet build --no-restore
+        run: dotnet build --no-restore -p:UseLocalJellyfinReferences=true
       # - name: Test
       #   run: dotnet test --no-restore --verbosity normal

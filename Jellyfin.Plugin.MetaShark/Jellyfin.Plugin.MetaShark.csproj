@@ -10,6 +10,7 @@
     <Nullable>enable</Nullable>
     <AnalysisMode>AllEnabledByDefault</AnalysisMode>
     <CopyLocalLockFileAssemblies>true</CopyLocalLockFileAssemblies>
+    <UseLocalJellyfinReferences>false</UseLocalJellyfinReferences>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|AnyCPU'">
     <TreatWarningsAsErrors>False</TreatWarningsAsErrors>
@@ -28,10 +29,18 @@
       <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
       <PrivateAssets>all</PrivateAssets>
     </PackageReference>
-    <ProjectReference Include="../vendor/jellyfin-build-10.10/MediaBrowser.Controller/MediaBrowser.Controller.csproj" />
-    <ProjectReference Include="../vendor/jellyfin-build-10.10/MediaBrowser.Model/MediaBrowser.Model.csproj" />
     <PackageReference Include="RateLimiter" Version="2.2.0" />
     <PackageReference Include="TMDbLib" Version="2.2.0" />
+  </ItemGroup>
+
+  <ItemGroup Condition="'$(UseLocalJellyfinReferences)' == 'true' AND Exists('..\vendor\jellyfin-build-10.10\MediaBrowser.Controller\MediaBrowser.Controller.csproj')">
+    <ProjectReference Include="../vendor/jellyfin-build-10.10/MediaBrowser.Controller/MediaBrowser.Controller.csproj" />
+    <ProjectReference Include="../vendor/jellyfin-build-10.10/MediaBrowser.Model/MediaBrowser.Model.csproj" />
+  </ItemGroup>
+
+  <ItemGroup Condition="'$(UseLocalJellyfinReferences)' != 'true' OR !Exists('..\vendor\jellyfin-build-10.10\MediaBrowser.Controller\MediaBrowser.Controller.csproj')">
+    <PackageReference Include="Jellyfin.Controller" Version="10.10.7" />
+    <PackageReference Include="Jellyfin.Model" Version="10.10.7" />
   </ItemGroup>
   <ItemGroup>
     <PackageReference Include="SerilogAnalyzer" Version="0.15.0" PrivateAssets="All" />
