@@ -1,7 +1,10 @@
 # jellyfin-plugin-metashark
 
-本仓库基于 https://github.com/cxfksword/jellyfin-plugin-metashark，由 qimaoaa 使用 AI 作个人用途的修改。
-基于 nyanmisaka/jellyfin 10.10.7。
+本仓库基于 https://github.com/cxfksword/jellyfin-plugin-metashark
+
+AI改的仅自用
+
+基于 nyanmisaka/jellyfin 10.10.7
 
 ## 功能
 
