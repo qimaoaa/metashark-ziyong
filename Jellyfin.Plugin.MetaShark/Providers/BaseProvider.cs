@@ -436,6 +436,7 @@ namespace Jellyfin.Plugin.MetaShark.Providers
             var seriesId = seriesTmdbId.ToString(CultureInfo.InvariantCulture);
             if (TmdbEpisodeGroupMapping.TryGetGroupId(Config.TmdbEpisodeGroupMap, seriesId, out var groupId))
             {
+                this.Log("TMDb episode group mapping hit: seriesId={0} groupId={1} season={2} episode={3}", seriesId, groupId, seasonNumber, episodeNumber);
                 var group = await this.TmdbApi
                     .GetEpisodeGroupByIdAsync(groupId, normalizedLanguage, cancellationToken)
                     .ConfigureAwait(false);
@@ -447,6 +448,7 @@ namespace Jellyfin.Plugin.MetaShark.Providers
                     var ep = season?.Episodes.Find(e => e.Order == episodeNumber - 1);
                     if (ep is not null)
                     {
+                        this.Log("TMDb episode group mapping resolved: seriesId={0} groupId={1} season={2} episode={3} -> S{4}E{5}", seriesId, groupId, seasonNumber, episodeNumber, ep.SeasonNumber, ep.EpisodeNumber);
                         var result = await this.TmdbApi
                             .GetSeasonAsync(seriesTmdbId, ep.SeasonNumber, normalizedLanguage, normalizedImageLanguages, cancellationToken)
                             .ConfigureAwait(false);

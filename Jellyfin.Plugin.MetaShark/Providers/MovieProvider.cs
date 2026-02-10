@@ -240,9 +240,15 @@ namespace Jellyfin.Plugin.MetaShark.Providers
 
             if (Config.EnableTmdbTags && movieResult.Keywords?.Keywords != null)
             {
+                var tagCount = movieResult.Keywords.Keywords.Count;
                 for (var i = 0; i < movieResult.Keywords.Keywords.Count; i++)
                 {
                     movie.AddTag(movieResult.Keywords.Keywords[i].Name);
+                }
+
+                if (tagCount > 0)
+                {
+                    this.Log("TMDb tags added for movie: id={0} name={1} count={2}", movieResult.Id, movieResult.Title ?? movieResult.OriginalTitle, tagCount);
                 }
             }
 

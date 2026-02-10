@@ -218,12 +218,14 @@ namespace Jellyfin.Plugin.MetaShark.Providers
 
             if (TmdbEpisodeGroupMapping.TryGetGroupId(Config.TmdbEpisodeGroupMap, seriesTmdbId, out var groupId))
             {
+                this.Log("TMDb episode group mapping hit (season): seriesId={0} groupId={1} season={2}", seriesTmdbId, groupId, seasonNumber);
                 var group = await this.TmdbApi
                     .GetEpisodeGroupByIdAsync(groupId, info.MetadataLanguage, cancellationToken)
                     .ConfigureAwait(false);
                 var seasonGroup = group?.Groups.FirstOrDefault(g => g.Order == seasonNumber);
                 if (seasonGroup != null)
                 {
+                    this.Log("TMDb episode group mapping resolved (season): seriesId={0} groupId={1} season={2} name={3}", seriesTmdbId, groupId, seasonNumber, seasonGroup.Name);
                     result.Item = new Season
                     {
                         Name = seasonGroup.Name,

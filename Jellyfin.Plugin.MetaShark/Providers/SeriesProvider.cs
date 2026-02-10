@@ -313,9 +313,15 @@ namespace Jellyfin.Plugin.MetaShark.Providers
 
             if (Config.EnableTmdbTags && seriesResult.Keywords?.Results != null)
             {
+                var tagCount = seriesResult.Keywords.Results.Count;
                 for (var i = 0; i < seriesResult.Keywords.Results.Count; i++)
                 {
                     series.AddTag(seriesResult.Keywords.Results[i].Name);
+                }
+
+                if (tagCount > 0)
+                {
+                    this.Log("TMDb tags added for series: id={0} name={1} count={2}", seriesResult.Id, seriesResult.Name, tagCount);
                 }
             }
 
