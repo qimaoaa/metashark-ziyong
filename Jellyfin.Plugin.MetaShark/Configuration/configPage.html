@@ -13,8 +13,18 @@
         }
 
         #TemplateConfigPage .config-col {
-            flex: 1 1 420px;
-            min-width: 320px;
+            flex: 1 1 360px;
+            min-width: 260px;
+        }
+
+        @media (min-width: 1024px) {
+            #TemplateConfigPage .config-two-col {
+                flex-wrap: nowrap;
+            }
+
+            #TemplateConfigPage .config-col {
+                min-width: 0;
+            }
         }
     </style>
 </head>
@@ -161,40 +171,10 @@
                             </label>
                             <div class="fieldDescription">勾选后，会自动创建电影系列合集（和媒体库配置中的<b>自动添加到合集</b>功能冲突，需要先关闭）</div>
                         </div>
-                        <div class="checkboxContainer checkboxContainer-withDescription">
-                            <label class="emby-checkbox-label" for="EnableSpecialsWithinSeasons">
-                                <input id="EnableSpecialsWithinSeasons" name="EnableSpecialsWithinSeasons" type="checkbox"
-                                    is="emby-checkbox" />
-                                <span>特典插入到季内顺序</span>
-                            </label>
-                            <div class="fieldDescription">勾选后，TMDb 提供插入位置时，特典将按季内顺序显示</div>
-                        </div>
-                            </fieldset>
-                        </div>
-                        <div class="config-col">
-                            <fieldset class="verticalSection verticalSection-extrabottompadding">
-                                <legend>
-                                    <h3>特典排序策略（按剧集）</h3>
-                                </legend>
-                                <div class="inputContainer">
-                                    <div id="SpecialsPlacementModeMapRows"></div>
-                                    <div class="fieldDescription">左侧填 TMDb 剧集 ID，中间选策略（季末/季内/S00）；未配置默认按发行日期放到对应季末</div>
-                                </div>
-                            </fieldset>
-                        </div>
-                    </div>
-                        
                         <div class="inputContainer">
                             <label class="inputLabel inputLabelUnfocused" for="TmdbApiKey">Api Key</label>
                             <input id="TmdbApiKey" name="TmdbApiKey" type="text" is="emby-input" />
                             <div class="fieldDescription">填写自定义Api Key，不填写会使用默认api key.(需重启才能生效)</div>
-                        </div>
-                        <div class="inputContainer">
-                            <label class="inputLabel inputLabelUnfocused" for="TmdbEpisodeGroupMap">TMDb剧集组映射</label>
-                            <textarea rows="6" is="emby-input" type="text" id="TmdbEpisodeGroupMap"
-                                name="TmdbEpisodeGroupMap" class="emby-input" placeholder="1399=5f2e...
-1402=5f3a..."></textarea>
-                            <div class="fieldDescription">每行一条：tmdbId=episodeGroupId</div>
                         </div>
                         <div class="inputContainer">
                             <label class="inputLabel inputLabelUnfocused" for="TmdbHost">Api Host</label>
@@ -226,6 +206,41 @@
                             <input is="emby-input" type="number" id="TmdbProxyPort" name="TmdbProxyPort"
                                 pattern="[0-9]*" min="1" max="65535" class="emby-input">
                         </div>
+                            </fieldset>
+                        </div>
+                        <div class="config-col">
+                            <fieldset class="verticalSection verticalSection-extrabottompadding">
+                                <legend>
+                                    <h3>TMDb 高级设置</h3>
+                                </legend>
+                            <div class="inputContainer">
+                                <label class="inputLabel inputLabelUnfocused" for="TmdbEpisodeGroupMap">TMDb剧集组映射</label>
+                                <textarea rows="6" is="emby-input" type="text" id="TmdbEpisodeGroupMap"
+                                    name="TmdbEpisodeGroupMap" class="emby-input" placeholder="1399=5f2e...
+1402=5f3a..."></textarea>
+                                <div class="fieldDescription">每行一条：tmdbId=episodeGroupId</div>
+                            </div>
+                            <div class="checkboxContainer checkboxContainer-withDescription">
+                                <label class="emby-checkbox-label" for="EnableSpecialsWithinSeasons">
+                                    <input id="EnableSpecialsWithinSeasons" name="EnableSpecialsWithinSeasons" type="checkbox"
+                                        is="emby-checkbox" />
+                                    <span>特典插入到季内顺序</span>
+                                </label>
+                                <div class="fieldDescription">勾选后，才会应用下方“特典排序策略（按剧集）”。未勾选时特典保持在 S00。</div>
+                            </div>
+                            <div class="verticalSection verticalSection-extrabottompadding">
+                                <div class="sectionTitleContainer">
+                                    <h3>特典排序策略（按剧集）</h3>
+                                </div>
+                                <div class="inputContainer">
+                                    <div id="SpecialsPlacementModeMapRows"></div>
+                                    <div class="fieldDescription">左侧填 TMDb 剧集 ID，中间选策略（季末/季内/S00）；未配置默认按发行日期放到对应季末。仅在上方开关开启时生效，且需在 Jellyfin 媒体库设置中开启“显示季中所播出的特集”。</div>
+                                </div>
+                            </div>
+                            </fieldset>
+                        </div>
+                    </div>
+                        
                     <button is="emby-button" type="submit" class="raised button-submit block emby-button">
                         <span>Save</span>
                     </button>
