@@ -48,7 +48,7 @@ jobs:
       - name: Build
         run: |
           dotnet restore ${{ env.project }} --no-cache -p:UseLocalJellyfinReferences=true
-          dotnet publish --nologo --no-restore --configuration=Release --framework=net8.0 -p:UseLocalJellyfinReferences=true -p:Version=${{steps.vars.outputs.VERSION}} ${{ env.project }}
+          dotnet publish --nologo --no-restore --configuration=Release --framework=net8.0 -p:UseLocalJellyfinReferences=true -p:Version=${{steps.vars.outputs.VERSION}} -p:AssemblyVersion=${{steps.vars.outputs.VERSION}} -p:FileVersion=${{steps.vars.outputs.VERSION}} ${{ env.project }}
           mkdir -p artifacts
           zip -j ./artifacts/${{ env.artifact }}_${{steps.vars.outputs.VERSION}}.zip ./Jellyfin.Plugin.MetaShark/bin/Release/net8.0/Jellyfin.Plugin.MetaShark.dll
       - name: Generate manifest
