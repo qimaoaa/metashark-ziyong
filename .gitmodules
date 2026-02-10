@@ -1,0 +1,4 @@
+[submodule "vendor/jellyfin-build-10.10"]
+	path = vendor/jellyfin-build-10.10
+	url = https://github.com/nyanmisaka/jellyfin.git
+	branch = build-10.10

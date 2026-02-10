@@ -5,6 +5,5 @@ obj/
 artifacts
 **/.DS_Store
 metashark/
-vendor/jellyfin-build-10.10/
 *.json
 .vscode
