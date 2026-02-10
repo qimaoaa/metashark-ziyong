@@ -4,6 +4,19 @@
 <head>
     <meta charset="utf-8">
     <title>Template</title>
+    <style>
+        #TemplateConfigPage .config-two-col {
+            display: flex;
+            gap: 24px;
+            align-items: flex-start;
+            flex-wrap: wrap;
+        }
+
+        #TemplateConfigPage .config-col {
+            flex: 1 1 420px;
+            min-width: 320px;
+        }
+    </style>
 </head>
 
 <body>
@@ -22,10 +35,12 @@
                 </div>
 
                 <form id="TemplateConfigForm">
-                    <fieldset class="verticalSection verticalSection-extrabottompadding">
-                        <legend>
-                            <h3>豆瓣</h3>
-                        </legend>
+                    <div class="config-two-col">
+                        <div class="config-col">
+                            <fieldset class="verticalSection verticalSection-extrabottompadding">
+                                <legend>
+                                    <h3>豆瓣</h3>
+                                </legend>
                         <div class="inputContainer">
                             <label class="inputLabel inputLabelUnfocused" for="DoubanCookies">豆瓣网站cookie<span
                                 id="login_msg"
@@ -69,12 +84,12 @@
                             </label>
                             <div class="fieldDescription">原图豆瓣限制更严格，一般不建议开启</div>
                         </div>
-                    </fieldset>
+                            </fieldset>
 
-                    <fieldset class="verticalSection verticalSection-extrabottompadding">
-                        <legend>
-                            <h3>TheMovieDb</h3>
-                        </legend>
+                            <fieldset class="verticalSection verticalSection-extrabottompadding">
+                                <legend>
+                                    <h3>TheMovieDb</h3>
+                                </legend>
                         <div class="checkboxContainer checkboxContainer-withDescription">
                             <label class="emby-checkbox-label" for="EnableTmdbMatch">
                                 <input id="EnableTmdbMatch" name="EnableTmdbMatch" type="checkbox"
@@ -154,11 +169,20 @@
                             </label>
                             <div class="fieldDescription">勾选后，TMDb 提供插入位置时，特典将按季内顺序显示</div>
                         </div>
-                        <div class="inputContainer">
-                            <label class="inputLabel inputLabelUnfocused" for="SpecialsPlacementModeMap">特典排序策略（按剧集）</label>
-                            <div id="SpecialsPlacementModeMapRows"></div>
-                            <div class="fieldDescription">左侧填 TMDb 剧集 ID，中间选策略；未配置默认按发行日期放到对应季末</div>
+                            </fieldset>
                         </div>
+                        <div class="config-col">
+                            <fieldset class="verticalSection verticalSection-extrabottompadding">
+                                <legend>
+                                    <h3>特典排序策略（按剧集）</h3>
+                                </legend>
+                                <div class="inputContainer">
+                                    <div id="SpecialsPlacementModeMapRows"></div>
+                                    <div class="fieldDescription">左侧填 TMDb 剧集 ID，中间选策略（季末/季内/S00）；未配置默认按发行日期放到对应季末</div>
+                                </div>
+                            </fieldset>
+                        </div>
+                    </div>
                         
                         <div class="inputContainer">
                             <label class="inputLabel inputLabelUnfocused" for="TmdbApiKey">Api Key</label>
@@ -202,7 +226,6 @@
                             <input is="emby-input" type="number" id="TmdbProxyPort" name="TmdbProxyPort"
                                 pattern="[0-9]*" min="1" max="65535" class="emby-input">
                         </div>
-                    </fieldset>
                     <button is="emby-button" type="submit" class="raised button-submit block emby-button">
                         <span>Save</span>
                     </button>
@@ -444,31 +467,38 @@
                 idInput.value = tmdbId || '';
                 idInput.placeholder = 'TMDb ID';
                 idInput.className = 'emby-input';
-                idInput.style.flex = '1';
+                idInput.style.width = '180px';
+                idInput.style.minWidth = '160px';
+                idInput.style.flex = '0 0 auto';
 
                 var select = document.createElement('select');
                 select.className = 'emby-select-withcolor emby-select';
+                select.style.flex = '1';
                 select.innerHTML = ''
                     + '<option value="airdate">按发行日期放到对应季末</option>'
                     + '<option value="airdate-inseason">按发行日期插入季内</option>'
-                    + '<option value="last">保持在 S00（直接放最后）</option>';
+                    + '<option value="last">保持在 S00</option>';
                 select.value = normalizeSpecialsPlacementMode(mode || 'airdate');
 
                 var addBtn = document.createElement('button');
                 addBtn.setAttribute('is', 'emby-button');
                 addBtn.type = 'button';
-                addBtn.className = 'raised button-submit emby-button';
+                addBtn.className = 'raised emby-button';
                 addBtn.textContent = '+';
-                addBtn.addEventListener('click', function () {
+                addBtn.addEventListener('click', function (e) {
+                    e.preventDefault();
+                    e.stopPropagation();
                     addSpecialsPlacementModeRow('', 'airdate');
                 });
 
                 var removeBtn = document.createElement('button');
                 removeBtn.setAttribute('is', 'emby-button');
                 removeBtn.type = 'button';
-                removeBtn.className = 'raised button-cancel emby-button';
+                removeBtn.className = 'raised emby-button';
                 removeBtn.textContent = '-';
-                removeBtn.addEventListener('click', function () {
+                removeBtn.addEventListener('click', function (e) {
+                    e.preventDefault();
+                    e.stopPropagation();
                     container.removeChild(row);
                     if (container.children.length === 0) {
                         addSpecialsPlacementModeRow('', 'airdate');
