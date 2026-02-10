@@ -392,15 +392,6 @@ namespace Jellyfin.Plugin.MetaShark.Providers
             return result;
         }
 
-        private sealed class SpecialAirsPlacement
-        {
-            public int? AirsBeforeSeasonNumber { get; init; }
-
-            public int? AirsBeforeEpisodeNumber { get; init; }
-
-            public int? AirsAfterSeasonNumber { get; init; }
-        }
-
         private MetadataResult<Episode>? HandleAnimeExtras(EpisodeInfo info)
         {
             // 特典或extra视频可能和正片剧集放在同一目录
@@ -453,6 +444,15 @@ namespace Jellyfin.Plugin.MetaShark.Providers
             // return result;
             // }
             return null;
+        }
+
+        private sealed class SpecialAirsPlacement
+        {
+            public int? AirsBeforeSeasonNumber { get; set; }
+
+            public int? AirsBeforeEpisodeNumber { get; set; }
+
+            public int? AirsAfterSeasonNumber { get; set; }
         }
     }
 }
