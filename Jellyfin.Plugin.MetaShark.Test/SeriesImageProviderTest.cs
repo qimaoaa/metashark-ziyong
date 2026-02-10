@@ -11,6 +11,7 @@ using Moq;
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Net;
 using System.Text;
 using System.Threading.Tasks;
 
@@ -47,12 +48,20 @@ namespace Jellyfin.Plugin.MetaShark.Test
 
             Task.Run(async () =>
             {
-                var provider = new SeriesImageProvider(httpClientFactory, loggerFactory, libraryManagerStub.Object, httpContextAccessorStub.Object, doubanApi, tmdbApi, omdbApi, imdbApi);
-                var result = await provider.GetImages(info, CancellationToken.None);
-                Assert.IsNotNull(result);
+                try
+                {
+                    var provider = new SeriesImageProvider(httpClientFactory, loggerFactory, libraryManagerStub.Object, httpContextAccessorStub.Object, doubanApi, tmdbApi, omdbApi, imdbApi);
+                    var result = await provider.GetImages(info, CancellationToken.None);
+                    Assert.IsNotNull(result);
 
-                var str = result.ToJson();
-                Console.WriteLine(result.ToJson());
+                    var str = result.ToJson();
+                    Console.WriteLine(result.ToJson());
+                }
+                catch (HttpRequestException ex) when (ex.StatusCode == HttpStatusCode.TooManyRequests
+                    || ex.Message.Contains("429", StringComparison.Ordinal))
+                {
+                    Assert.Inconclusive("Douban rate limited (429)." + ex.Message);
+                }
             }).GetAwaiter().GetResult();
         }
 

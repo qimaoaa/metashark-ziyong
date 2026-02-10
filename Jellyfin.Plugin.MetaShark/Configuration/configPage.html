@@ -154,13 +154,10 @@
                             </label>
                             <div class="fieldDescription">勾选后，TMDb 提供插入位置时，特典将按季内顺序显示</div>
                         </div>
-                        <div class="checkboxContainer checkboxContainer-withDescription">
-                            <label class="emby-checkbox-label" for="EnableSpecialsAppendWithoutPlacement">
-                                <input id="EnableSpecialsAppendWithoutPlacement" name="EnableSpecialsAppendWithoutPlacement" type="checkbox"
-                                    is="emby-checkbox" />
-                                <span>无插入信息时追加到季末</span>
-                            </label>
-                            <div class="fieldDescription">勾选后，TMDb 未返回插入位置时，按发行日期选择季并追加到该季末尾</div>
+                        <div class="inputContainer">
+                            <label class="inputLabel inputLabelUnfocused" for="SpecialsPlacementModeMap">特典排序策略（按剧集）</label>
+                            <div id="SpecialsPlacementModeMapRows"></div>
+                            <div class="fieldDescription">左侧填 TMDb 剧集 ID，中间选策略；未配置默认按发行日期放到对应季末</div>
                         </div>
                         
                         <div class="inputContainer">
@@ -219,6 +216,7 @@
             };
 
             var lastEpisodeGroupMap = '';
+            var specialsPlacementExtraLines = [];
 
             document.querySelector('#TemplateConfigPage')
                 .addEventListener('pageshow', function () {
@@ -241,7 +239,7 @@
                         document.querySelector('#EnableTmdbAdult').checked = config.EnableTmdbAdult;
                         document.querySelector('#EnableTmdbCollection').checked = config.EnableTmdbCollection;
                         document.querySelector('#EnableSpecialsWithinSeasons').checked = config.EnableSpecialsWithinSeasons;
-                        document.querySelector('#EnableSpecialsAppendWithoutPlacement').checked = config.EnableSpecialsAppendWithoutPlacement;
+                        renderSpecialsPlacementModeRows(config.SpecialsPlacementModeMap || '');
                         document.querySelector('#EnableTmdbOfficialRating').checked = config.EnableTmdbOfficialRating;
                         document.querySelector('#EnableTmdbTags').checked = config.EnableTmdbTags;
                         document.querySelector('#TmdbApiKey').value = config.TmdbApiKey;
@@ -279,7 +277,9 @@
                         config.EnableTmdbAdult = document.querySelector('#EnableTmdbAdult').checked;
                         config.EnableTmdbCollection = document.querySelector('#EnableTmdbCollection').checked;
                         config.EnableSpecialsWithinSeasons = document.querySelector('#EnableSpecialsWithinSeasons').checked;
-                        config.EnableSpecialsAppendWithoutPlacement = document.querySelector('#EnableSpecialsAppendWithoutPlacement').checked;
+                        config.SpecialsPlacementDefaultMode = 'airdate';
+                        config.EnableSpecialsAppendWithoutPlacement = true;
+                        config.SpecialsPlacementModeMap = buildSpecialsPlacementModeMap();
                         config.EnableTmdbOfficialRating = document.querySelector('#EnableTmdbOfficialRating').checked;
                         config.EnableTmdbTags = document.querySelector('#EnableTmdbTags').checked;
                         config.TmdbApiKey = document.querySelector('#TmdbApiKey').value;
@@ -351,6 +351,148 @@
                 }).always(function () {
                     Dashboard.hideLoadingMsg();
                 });
+            }
+
+            function renderSpecialsPlacementModeRows(mapText) {
+                var container = document.querySelector('#SpecialsPlacementModeMapRows');
+                if (!container) {
+                    return;
+                }
+
+                container.innerHTML = '';
+                specialsPlacementExtraLines = [];
+                var lines = (mapText || '').split(/\r?\n/).filter(function (line) {
+                    return line && line.trim();
+                });
+
+                lines.forEach(function (rawLine) {
+                    var line = rawLine.trim();
+                    if (!line || line.startsWith('#')) {
+                        return;
+                    }
+
+                    var parts = line.split('=');
+                    if (parts.length < 2) {
+                        specialsPlacementExtraLines.push(line);
+                        return;
+                    }
+
+                    var key = parts[0].trim();
+                    var value = parts.slice(1).join('=').trim().toLowerCase();
+                    if (!key) {
+                        return;
+                    }
+
+                    var tmdbId = '';
+                    if (key.toLowerCase().startsWith('tmdb:')) {
+                        tmdbId = key.substring(5).trim();
+                    } else if (/^\d+$/.test(key)) {
+                        tmdbId = key;
+                    }
+
+                    if (tmdbId) {
+                        addSpecialsPlacementModeRow(tmdbId, value || 'airdate');
+                    } else {
+                        specialsPlacementExtraLines.push(line);
+                    }
+                });
+
+                if (container.children.length === 0) {
+                    addSpecialsPlacementModeRow('', 'airdate');
+                }
+            }
+
+            function buildSpecialsPlacementModeMap() {
+                var container = document.querySelector('#SpecialsPlacementModeMapRows');
+                if (!container) {
+                    return '';
+                }
+
+                var lines = [];
+                Array.prototype.forEach.call(container.querySelectorAll('.specials-placement-row'), function (row) {
+                    var idInput = row.querySelector('input');
+                    var modeSelect = row.querySelector('select');
+                    var tmdbId = (idInput && idInput.value || '').trim();
+                    var mode = (modeSelect && modeSelect.value || 'airdate').trim();
+                    if (tmdbId) {
+                        lines.push('tmdb:' + tmdbId + '=' + mode);
+                    }
+                });
+
+                specialsPlacementExtraLines.forEach(function (line) {
+                    lines.push(line);
+                });
+
+                return lines.join('\n');
+            }
+
+            function addSpecialsPlacementModeRow(tmdbId, mode) {
+                var container = document.querySelector('#SpecialsPlacementModeMapRows');
+                if (!container) {
+                    return;
+                }
+
+                var row = document.createElement('div');
+                row.className = 'specials-placement-row';
+                row.style.display = 'flex';
+                row.style.gap = '8px';
+                row.style.alignItems = 'center';
+                row.style.marginBottom = '8px';
+
+                var idInput = document.createElement('input');
+                idInput.type = 'text';
+                idInput.value = tmdbId || '';
+                idInput.placeholder = 'TMDb ID';
+                idInput.className = 'emby-input';
+                idInput.style.flex = '1';
+
+                var select = document.createElement('select');
+                select.className = 'emby-select-withcolor emby-select';
+                select.innerHTML = ''
+                    + '<option value="airdate">按发行日期放到对应季末</option>'
+                    + '<option value="airdate-inseason">按发行日期插入季内</option>'
+                    + '<option value="last">保持在 S00（直接放最后）</option>';
+                select.value = normalizeSpecialsPlacementMode(mode || 'airdate');
+
+                var addBtn = document.createElement('button');
+                addBtn.setAttribute('is', 'emby-button');
+                addBtn.type = 'button';
+                addBtn.className = 'raised button-submit emby-button';
+                addBtn.textContent = '+';
+                addBtn.addEventListener('click', function () {
+                    addSpecialsPlacementModeRow('', 'airdate');
+                });
+
+                var removeBtn = document.createElement('button');
+                removeBtn.setAttribute('is', 'emby-button');
+                removeBtn.type = 'button';
+                removeBtn.className = 'raised button-cancel emby-button';
+                removeBtn.textContent = '-';
+                removeBtn.addEventListener('click', function () {
+                    container.removeChild(row);
+                    if (container.children.length === 0) {
+                        addSpecialsPlacementModeRow('', 'airdate');
+                    }
+                });
+
+                row.appendChild(idInput);
+                row.appendChild(select);
+                row.appendChild(addBtn);
+                row.appendChild(removeBtn);
+                container.appendChild(row);
+            }
+
+            function normalizeSpecialsPlacementMode(mode) {
+                var value = (mode || '').toLowerCase();
+                if (value === 'airdate' || value === 'date' || value === 'air') {
+                    return 'airdate';
+                }
+
+                if (value === 'airdate-inseason' || value === 'inseason' || value === 'season' || value === 'mid') {
+                    return 'airdate-inseason';
+                }
+
+                return 'last';
             }
         </script>
     </div>

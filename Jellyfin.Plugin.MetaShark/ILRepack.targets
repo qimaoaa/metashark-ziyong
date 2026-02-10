@@ -1,9 +1,10 @@
 <?xml version="1.0" encoding="utf-8" ?>
 <Project xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
-  <Target Name="ILRepacker" AfterTargets="Build" Condition="'$(Configuration)'=='Release'">
-    <PropertyGroup>
-      <DoILRepack>false</DoILRepack>
-    </PropertyGroup>
+  <PropertyGroup>
+    <DoILRepack Condition="'$(DoILRepack)' == ''">true</DoILRepack>
+  </PropertyGroup>
+
+  <Target Name="ILRepacker" AfterTargets="Build" Condition="'$(Configuration)'=='Release' AND '$(DoILRepack)'=='true'">
 
     <ItemGroup>
       <InputAssemblies Include="$(OutputPath)$(AssemblyName).dll" />

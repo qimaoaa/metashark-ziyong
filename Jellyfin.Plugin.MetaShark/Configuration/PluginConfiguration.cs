@@ -107,6 +107,11 @@ public class PluginConfiguration : BasePluginConfiguration
     public string TmdbEpisodeGroupMap { get; set; } = string.Empty;
 
     /// <summary>
+    /// Gets or sets specials placement mode map (per series).
+    /// </summary>
+    public string SpecialsPlacementModeMap { get; set; } = string.Empty;
+
+    /// <summary>
     /// Gets or sets a value indicating whether specials are placed within seasons when TMDB provides ordering info.
     /// </summary>
     public bool EnableSpecialsWithinSeasons { get; set; } = true;
@@ -115,6 +120,11 @@ public class PluginConfiguration : BasePluginConfiguration
     /// Gets or sets a value indicating whether to append specials to the end of the target season when no placement info is available.
     /// </summary>
     public bool EnableSpecialsAppendWithoutPlacement { get; set; } = true;
+
+    /// <summary>
+    /// Gets or sets the default specials placement mode.
+    /// </summary>
+    public string SpecialsPlacementDefaultMode { get; set; } = string.Empty;
 
     /// <summary>
     /// Gets or sets 代理服务器类型，0-禁用，1-http，2-https，3-socket5.
