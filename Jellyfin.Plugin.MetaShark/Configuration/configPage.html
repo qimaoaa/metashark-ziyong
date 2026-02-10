@@ -154,6 +154,14 @@
                             </label>
                             <div class="fieldDescription">勾选后，TMDb 提供插入位置时，特典将按季内顺序显示</div>
                         </div>
+                        <div class="checkboxContainer checkboxContainer-withDescription">
+                            <label class="emby-checkbox-label" for="EnableSpecialsAppendWithoutPlacement">
+                                <input id="EnableSpecialsAppendWithoutPlacement" name="EnableSpecialsAppendWithoutPlacement" type="checkbox"
+                                    is="emby-checkbox" />
+                                <span>无插入信息时追加到季末</span>
+                            </label>
+                            <div class="fieldDescription">勾选后，TMDb 未返回插入位置时，按发行日期选择季并追加到该季末尾</div>
+                        </div>
                         
                         <div class="inputContainer">
                             <label class="inputLabel inputLabelUnfocused" for="TmdbApiKey">Api Key</label>
@@ -233,6 +241,7 @@
                         document.querySelector('#EnableTmdbAdult').checked = config.EnableTmdbAdult;
                         document.querySelector('#EnableTmdbCollection').checked = config.EnableTmdbCollection;
                         document.querySelector('#EnableSpecialsWithinSeasons').checked = config.EnableSpecialsWithinSeasons;
+                        document.querySelector('#EnableSpecialsAppendWithoutPlacement').checked = config.EnableSpecialsAppendWithoutPlacement;
                         document.querySelector('#EnableTmdbOfficialRating').checked = config.EnableTmdbOfficialRating;
                         document.querySelector('#EnableTmdbTags').checked = config.EnableTmdbTags;
                         document.querySelector('#TmdbApiKey').value = config.TmdbApiKey;
@@ -270,6 +279,7 @@
                         config.EnableTmdbAdult = document.querySelector('#EnableTmdbAdult').checked;
                         config.EnableTmdbCollection = document.querySelector('#EnableTmdbCollection').checked;
                         config.EnableSpecialsWithinSeasons = document.querySelector('#EnableSpecialsWithinSeasons').checked;
+                        config.EnableSpecialsAppendWithoutPlacement = document.querySelector('#EnableSpecialsAppendWithoutPlacement').checked;
                         config.EnableTmdbOfficialRating = document.querySelector('#EnableTmdbOfficialRating').checked;
                         config.EnableTmdbTags = document.querySelector('#EnableTmdbTags').checked;
                         config.TmdbApiKey = document.querySelector('#TmdbApiKey').value;

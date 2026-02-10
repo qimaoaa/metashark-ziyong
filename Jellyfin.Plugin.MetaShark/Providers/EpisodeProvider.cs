@@ -328,6 +328,11 @@ namespace Jellyfin.Plugin.MetaShark.Providers
                 };
             }
 
+            if (!Config.EnableSpecialsAppendWithoutPlacement)
+            {
+                return null;
+            }
+
             var series = await this.TmdbApi.GetSeriesAsync(seriesTmdbId, normalizedLanguage, normalizedImageLanguages, cancellationToken)
                 .ConfigureAwait(false);
             if (series?.Seasons == null)
