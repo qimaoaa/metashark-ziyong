@@ -24,14 +24,14 @@ namespace Jellyfin.Plugin.MetaShark.Providers
 
     public class EpisodeProvider : BaseProvider, IRemoteMetadataProvider<Episode, EpisodeInfo>, IDisposable
     {
-        private static readonly char[] SpecialsPlacementLineSeparators = new[] { '\r', '\n' };
-
         private readonly MemoryCache memoryCache;
+        private readonly TvdbApi tvdbApi;
 
-        public EpisodeProvider(IHttpClientFactory httpClientFactory, ILoggerFactory loggerFactory, ILibraryManager libraryManager, IHttpContextAccessor httpContextAccessor, DoubanApi doubanApi, TmdbApi tmdbApi, OmdbApi omdbApi, ImdbApi imdbApi)
+        public EpisodeProvider(IHttpClientFactory httpClientFactory, ILoggerFactory loggerFactory, ILibraryManager libraryManager, IHttpContextAccessor httpContextAccessor, DoubanApi doubanApi, TmdbApi tmdbApi, OmdbApi omdbApi, ImdbApi imdbApi, TvdbApi tvdbApi)
             : base(httpClientFactory, loggerFactory.CreateLogger<EpisodeProvider>(), libraryManager, httpContextAccessor, doubanApi, tmdbApi, omdbApi, imdbApi)
         {
             this.memoryCache = new MemoryCache(new MemoryCacheOptions());
+            this.tvdbApi = tvdbApi;
         }
 
         public string Name => MetaSharkPlugin.PluginName;
@@ -122,63 +122,31 @@ namespace Jellyfin.Plugin.MetaShark.Providers
                 ParentIndexNumber = seasonNumber,
             };
 
-            if (seasonNumber == 0 && Config.EnableSpecialsWithinSeasons)
+            if (seasonNumber == 0 && Config.EnableTvdbSpecialsWithinSeasons)
             {
-                info.SeriesProviderIds.TryGetValue(DoubanProviderId, out var seriesDoubanId);
-                var placementMode = ResolveSpecialsPlacementMode(seriesTmdbId, seriesDoubanId);
-                SpecialAirsPlacement? placement = null;
-
-                this.Log(
-                    "Special placement mode. seriesTmdbId: {0} doubanId: {1} s{2}e{3} mode: {4} airDate: {5}",
-                    seriesTmdbId,
-                    seriesDoubanId,
-                    seasonNumber,
-                    episodeNumber,
-                    placementMode,
-                    episodeResult.AirDate);
-
-                if (placementMode == SpecialPlacementMode.AirDate)
+                info.SeriesProviderIds.TryGetValue(MetadataProvider.Tvdb.ToString(), out var seriesTvdbId);
+                if (!string.IsNullOrWhiteSpace(seriesTvdbId))
                 {
-                    placement = await this.BuildSpecialPlacementByAirDateAsync(
-                            seriesTmdbId.ToInt(),
-                            episodeResult.AirDate,
-                            info.MetadataLanguage,
-                            info.MetadataLanguage,
-                            cancellationToken)
+                    var placement = await this.TryBuildTvdbSpecialPlacementAsync(seriesTvdbId, episodeNumber, info.MetadataLanguage, cancellationToken)
                         .ConfigureAwait(false);
+                    if (placement != null)
+                    {
+                        item.AirsBeforeSeasonNumber = placement.AirsBeforeSeasonNumber;
+                        item.AirsBeforeEpisodeNumber = placement.AirsBeforeEpisodeNumber;
+                        item.AirsAfterSeasonNumber = placement.AirsAfterSeasonNumber;
+                        this.Log(
+                            "TVDB special placement result. tvdbId: {0} s{1}e{2} -> beforeSeason: {3} beforeEpisode: {4} afterSeason: {5}",
+                            seriesTvdbId,
+                            seasonNumber,
+                            episodeNumber,
+                            item.AirsBeforeSeasonNumber,
+                            item.AirsBeforeEpisodeNumber,
+                            item.AirsAfterSeasonNumber);
+                    }
                 }
-                else if (placementMode == SpecialPlacementMode.AirDateInSeason)
+                else
                 {
-                    placement = await this.BuildSpecialPlacementByAirDateInSeasonAsync(
-                            seriesTmdbId.ToInt(),
-                            episodeResult.AirDate,
-                            info.MetadataLanguage,
-                            info.MetadataLanguage,
-                            cancellationToken)
-                        .ConfigureAwait(false);
-                }
-                else if (placementMode == SpecialPlacementMode.Last)
-                {
-                    this.Log(
-                        "Special placement skipped (keep in S00). seriesTmdbId: {0} s{1}e{2}",
-                        seriesTmdbId,
-                        seasonNumber,
-                        episodeNumber);
-                }
-
-                if (placement != null)
-                {
-                    item.AirsBeforeSeasonNumber = placement.AirsBeforeSeasonNumber;
-                    item.AirsBeforeEpisodeNumber = placement.AirsBeforeEpisodeNumber;
-                    item.AirsAfterSeasonNumber = placement.AirsAfterSeasonNumber;
-                    this.Log(
-                        "Special placement result. seriesTmdbId: {0} s{1}e{2} -> beforeSeason: {3} beforeEpisode: {4} afterSeason: {5}",
-                        seriesTmdbId,
-                        seasonNumber,
-                        episodeNumber,
-                        item.AirsBeforeSeasonNumber,
-                        item.AirsBeforeEpisodeNumber,
-                        item.AirsAfterSeasonNumber);
+                    this.Log("TVDB special placement skipped (missing tvdb id). s{0}e{1}", seasonNumber, episodeNumber);
                 }
             }
 
@@ -344,242 +312,46 @@ namespace Jellyfin.Plugin.MetaShark.Providers
             return videoFilesCount;
         }
 
-        private static string NormalizeSpecialsPlacementMode(string? value)
-        {
-            return (value ?? string.Empty).Trim().ToUpperInvariant();
-        }
-
-        private static SpecialPlacementMode GetDefaultSpecialsPlacementMode()
-        {
-            var value = NormalizeSpecialsPlacementMode(Config.SpecialsPlacementDefaultMode);
-            if (value is "AIRDATE" or "DATE" or "AIR")
-            {
-                return SpecialPlacementMode.AirDate;
-            }
-
-            if (value is "AIRDATE-INSEASON" or "INSEASON" or "SEASON" or "MID")
-            {
-                return SpecialPlacementMode.AirDateInSeason;
-            }
-
-            if (value is "LAST" or "END" or "S00" or "NONE")
-            {
-                return SpecialPlacementMode.Last;
-            }
-
-            return Config.EnableSpecialsAppendWithoutPlacement ? SpecialPlacementMode.AirDate : SpecialPlacementMode.Last;
-        }
-
-        private static Dictionary<string, SpecialPlacementMode> ParseSpecialsPlacementModeMap(string mapText)
-        {
-            var map = new Dictionary<string, SpecialPlacementMode>(StringComparer.OrdinalIgnoreCase);
-            var lines = mapText.Split(SpecialsPlacementLineSeparators, StringSplitOptions.RemoveEmptyEntries);
-            foreach (var rawLine in lines)
-            {
-                var line = rawLine.Trim();
-                if (string.IsNullOrEmpty(line) || line.StartsWith('#'))
-                {
-                    continue;
-                }
-
-                var parts = line.Split('=', 2, StringSplitOptions.RemoveEmptyEntries);
-                if (parts.Length != 2)
-                {
-                    continue;
-                }
-
-                var key = parts[0].Trim();
-                var value = NormalizeSpecialsPlacementMode(parts[1]);
-                if (string.IsNullOrEmpty(key))
-                {
-                    continue;
-                }
-
-                if (value is "AIRDATE" or "DATE" or "AIR")
-                {
-                    map[key] = SpecialPlacementMode.AirDate;
-                }
-                else if (value is "AIRDATE-INSEASON" or "INSEASON" or "SEASON" or "MID")
-                {
-                    map[key] = SpecialPlacementMode.AirDateInSeason;
-                }
-                else if (value is "LAST" or "END" or "S00" or "NONE")
-                {
-                    map[key] = SpecialPlacementMode.Last;
-                }
-            }
-
-            return map;
-        }
-
-        private static SpecialPlacementMode ResolveSpecialsPlacementMode(string? seriesTmdbId, string? seriesDoubanId)
-        {
-            var mapText = Config.SpecialsPlacementModeMap;
-            if (string.IsNullOrWhiteSpace(mapText))
-            {
-                return GetDefaultSpecialsPlacementMode();
-            }
-
-            var map = ParseSpecialsPlacementModeMap(mapText);
-            if (!string.IsNullOrWhiteSpace(seriesTmdbId))
-            {
-                if (map.TryGetValue($"tmdb:{seriesTmdbId}", out var mode))
-                {
-                    return mode;
-                }
-
-                if (map.TryGetValue(seriesTmdbId, out mode))
-                {
-                    return mode;
-                }
-            }
-
-            if (!string.IsNullOrWhiteSpace(seriesDoubanId)
-                && map.TryGetValue($"douban:{seriesDoubanId}", out var doubanMode))
-            {
-                return doubanMode;
-            }
-
-            return GetDefaultSpecialsPlacementMode();
-        }
-
-        private async Task<SpecialAirsPlacement?> BuildSpecialPlacementByAirDateAsync(
-            int seriesTmdbId,
-            DateTime? airDate,
-            string? language,
-            string? imageLanguages,
+        private async Task<TvdbSpecialPlacement?> TryBuildTvdbSpecialPlacementAsync(
+            string seriesTvdbId,
+            int? episodeNumber,
+            string? metadataLanguage,
             CancellationToken cancellationToken)
         {
-            var normalizedLanguage = language ?? string.Empty;
-            var normalizedImageLanguages = imageLanguages ?? string.Empty;
+            if (!int.TryParse(seriesTvdbId, out var seriesId) || episodeNumber is null or 0)
+            {
+                return null;
+            }
 
-            var series = await this.TmdbApi.GetSeriesAsync(seriesTmdbId, normalizedLanguage, normalizedImageLanguages, cancellationToken)
+            var episodes = await this.tvdbApi
+                .GetSeriesEpisodesAsync(seriesId, "official", 0, metadataLanguage, cancellationToken)
                 .ConfigureAwait(false);
-            if (series?.Seasons == null)
+            if (episodes.Count == 0)
             {
                 return null;
             }
 
-            var seasons = series.Seasons
-                .Where(s => s.SeasonNumber > 0 && s.AirDate.HasValue)
-                .OrderBy(s => s.SeasonNumber)
-                .ToList();
-            if (seasons.Count == 0)
+            var match = episodes.FirstOrDefault(e => e.SeasonNumber == 0 && e.Number == episodeNumber);
+            if (match == null)
             {
                 return null;
             }
 
-            if (!airDate.HasValue)
+            return new TvdbSpecialPlacement
             {
-                return null;
-            }
-
-            var match = seasons
-                .Where(s => s.AirDate!.Value <= airDate.Value)
-                .OrderByDescending(s => s.SeasonNumber)
-                .FirstOrDefault();
-
-            var targetSeasonNumber = match?.SeasonNumber ?? seasons[0].SeasonNumber;
-            var result = new SpecialAirsPlacement
-            {
-                AirsBeforeSeasonNumber = targetSeasonNumber,
+                AirsBeforeSeasonNumber = match.AirsBeforeSeason,
+                AirsBeforeEpisodeNumber = match.AirsBeforeEpisode,
+                AirsAfterSeasonNumber = match.AirsAfterSeason,
             };
-
-            var season = await this.TmdbApi.GetSeasonAsync(seriesTmdbId, targetSeasonNumber, normalizedLanguage, normalizedImageLanguages, cancellationToken)
-                .ConfigureAwait(false);
-            if (season?.Episodes == null || season.Episodes.Count == 0)
-            {
-                return result;
-            }
-
-            var lastEpisodeNumber = season.Episodes
-                .Where(e => e.EpisodeNumber > 0)
-                .Select(e => e.EpisodeNumber)
-                .DefaultIfEmpty(0)
-                .Max();
-
-            if (lastEpisodeNumber > 0)
-            {
-                // No placement info: append to the end of the target season.
-                result.AirsBeforeEpisodeNumber = lastEpisodeNumber + 1;
-            }
-
-            return result;
         }
 
-        private async Task<SpecialAirsPlacement?> BuildSpecialPlacementByAirDateInSeasonAsync(
-            int seriesTmdbId,
-            DateTime? airDate,
-            string? language,
-            string? imageLanguages,
-            CancellationToken cancellationToken)
+        private sealed class TvdbSpecialPlacement
         {
-            var normalizedLanguage = language ?? string.Empty;
-            var normalizedImageLanguages = imageLanguages ?? string.Empty;
+            public int? AirsBeforeSeasonNumber { get; set; }
 
-            var series = await this.TmdbApi.GetSeriesAsync(seriesTmdbId, normalizedLanguage, normalizedImageLanguages, cancellationToken)
-                .ConfigureAwait(false);
-            if (series?.Seasons == null)
-            {
-                return null;
-            }
+            public int? AirsBeforeEpisodeNumber { get; set; }
 
-            var seasons = series.Seasons
-                .Where(s => s.SeasonNumber > 0 && s.AirDate.HasValue)
-                .OrderBy(s => s.SeasonNumber)
-                .ToList();
-            if (seasons.Count == 0)
-            {
-                return null;
-            }
-
-            if (!airDate.HasValue)
-            {
-                return null;
-            }
-
-            var match = seasons
-                .Where(s => s.AirDate!.Value <= airDate.Value)
-                .OrderByDescending(s => s.SeasonNumber)
-                .FirstOrDefault();
-
-            var targetSeasonNumber = match?.SeasonNumber ?? seasons[0].SeasonNumber;
-            var result = new SpecialAirsPlacement
-            {
-                AirsBeforeSeasonNumber = targetSeasonNumber,
-            };
-
-            var season = await this.TmdbApi.GetSeasonAsync(seriesTmdbId, targetSeasonNumber, normalizedLanguage, normalizedImageLanguages, cancellationToken)
-                .ConfigureAwait(false);
-            if (season?.Episodes == null || season.Episodes.Count == 0)
-            {
-                return result;
-            }
-
-            var candidate = season.Episodes
-                .Where(e => e.EpisodeNumber > 0 && e.AirDate.HasValue)
-                .OrderBy(e => e.AirDate)
-                .ThenBy(e => e.EpisodeNumber)
-                .FirstOrDefault(e => e.AirDate!.Value >= airDate.Value);
-
-            if (candidate?.EpisodeNumber > 0)
-            {
-                result.AirsBeforeEpisodeNumber = candidate.EpisodeNumber;
-                return result;
-            }
-
-            var lastEpisodeNumber = season.Episodes
-                .Where(e => e.EpisodeNumber > 0)
-                .Select(e => e.EpisodeNumber)
-                .DefaultIfEmpty(0)
-                .Max();
-
-            if (lastEpisodeNumber > 0)
-            {
-                result.AirsBeforeEpisodeNumber = lastEpisodeNumber + 1;
-            }
-
-            return result;
+            public int? AirsAfterSeasonNumber { get; set; }
         }
 
         private MetadataResult<Episode>? HandleAnimeExtras(EpisodeInfo info)

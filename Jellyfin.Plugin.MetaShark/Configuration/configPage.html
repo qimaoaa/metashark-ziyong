@@ -221,7 +221,7 @@
                         <div class="config-col">
                             <fieldset class="verticalSection verticalSection-extrabottompadding">
                                 <legend>
-                                    <h3>TMDb 高级设置</h3>
+                                    <h3>高级设置</h3>
                                 </legend>
                             <div class="inputContainer">
                                 <label class="inputLabel inputLabelUnfocused" for="TmdbEpisodeGroupMap">TMDb剧集组映射</label>
@@ -230,22 +230,33 @@
 1402=5f3a..."></textarea>
                                 <div class="fieldDescription">每行一条：tmdbId=episodeGroupId</div>
                             </div>
+                            </fieldset>
+                            <fieldset class="verticalSection verticalSection-extrabottompadding">
+                                <legend>
+                                    <h3>TVDB</h3>
+                                </legend>
                             <div class="checkboxContainer checkboxContainer-withDescription">
-                                <label class="emby-checkbox-label checkboxContainer" for="EnableSpecialsWithinSeasons">
-                                    <input id="EnableSpecialsWithinSeasons" name="EnableSpecialsWithinSeasons" type="checkbox"
-                                        is="emby-checkbox" class="emby-checkbox" />
-                                    <span>特典插入到季内顺序</span>
+                                <label class="emby-checkbox-label" for="EnableTvdbSpecialsWithinSeasons">
+                                    <input id="EnableTvdbSpecialsWithinSeasons" name="EnableTvdbSpecialsWithinSeasons" type="checkbox"
+                                        is="emby-checkbox" />
+                                    <span>启用TVDB特典插入到季内顺序</span>
                                 </label>
-                                <div class="fieldDescription">勾选后，才会应用下方“特典排序策略（按剧集）”。未勾选时特典保持在 S00。</div>
+                                <div class="fieldDescription">勾选后，会使用TVDB的官方顺序特典插入季内（需剧集具备TVDB ID）。</div>
                             </div>
-                            <div class="verticalSection verticalSection-extrabottompadding">
-                                <div class="sectionTitleContainer">
-                                    <h3>特典排序策略（按剧集）</h3>
-                                </div>
-                                <div class="inputContainer">
-                                    <div id="SpecialsPlacementModeMapRows"></div>
-                                    <div class="fieldDescription">左侧填 TMDb 剧集 ID，中间选策略（季末/季内/S00）；未配置默认按发行日期放到对应季末。仅在上方开关开启时生效，且需在 Jellyfin 媒体库设置中开启“显示季中所播出的特集”。</div>
-                                </div>
+                            <div class="inputContainer">
+                                <label class="inputLabel inputLabelUnfocused" for="TvdbApiKey">Api Key</label>
+                                <input id="TvdbApiKey" name="TvdbApiKey" type="text" is="emby-input" />
+                                <div class="fieldDescription">填写TVDB v4 Api Key。</div>
+                            </div>
+                            <div class="inputContainer">
+                                <label class="inputLabel inputLabelUnfocused" for="TvdbPin">Subscriber Pin</label>
+                                <input id="TvdbPin" name="TvdbPin" type="text" is="emby-input" />
+                                <div class="fieldDescription">仅订阅用户需要填写PIN。</div>
+                            </div>
+                            <div class="inputContainer">
+                                <label class="inputLabel inputLabelUnfocused" for="TvdbHost">Api Host</label>
+                                <input id="TvdbHost" name="TvdbHost" type="text" is="emby-input" placeholder="https://api4.thetvdb.com/v4" />
+                                <div class="fieldDescription">默认使用官方TVDB v4主机。</div>
                             </div>
                             </fieldset>
                         </div>
@@ -264,7 +275,6 @@
             };
 
             var lastEpisodeGroupMap = '';
-            var specialsPlacementExtraLines = [];
 
             document.querySelector('#TemplateConfigPage')
                 .addEventListener('pageshow', function () {
@@ -286,8 +296,6 @@
                         document.querySelector('#EnableTmdbLogo').checked = config.EnableTmdbLogo;
                         document.querySelector('#EnableTmdbAdult').checked = config.EnableTmdbAdult;
                         document.querySelector('#EnableTmdbCollection').checked = config.EnableTmdbCollection;
-                        document.querySelector('#EnableSpecialsWithinSeasons').checked = config.EnableSpecialsWithinSeasons;
-                        renderSpecialsPlacementModeRows(config.SpecialsPlacementModeMap || '');
                         document.querySelector('#EnableTmdbOfficialRating').checked = config.EnableTmdbOfficialRating;
                         document.querySelector('#EnableTmdbTags').checked = config.EnableTmdbTags;
                         document.querySelector('#TmdbApiKey').value = config.TmdbApiKey;
@@ -298,6 +306,10 @@
                         document.querySelector('#TmdbProxyType').value = config.TmdbProxyType;
                         document.querySelector('#TmdbProxyHost').value = config.TmdbProxyHost;
                         document.querySelector('#TmdbProxyPort').value = config.TmdbProxyPort;
+                        document.querySelector('#EnableTvdbSpecialsWithinSeasons').checked = config.EnableTvdbSpecialsWithinSeasons;
+                        document.querySelector('#TvdbApiKey').value = config.TvdbApiKey;
+                        document.querySelector('#TvdbPin').value = config.TvdbPin;
+                        document.querySelector('#TvdbHost').value = config.TvdbHost;
 
                         changeProxyDisplay();
                         checkDoubanLogin();
@@ -324,10 +336,6 @@
                         config.EnableTmdbLogo = document.querySelector('#EnableTmdbLogo').checked;
                         config.EnableTmdbAdult = document.querySelector('#EnableTmdbAdult').checked;
                         config.EnableTmdbCollection = document.querySelector('#EnableTmdbCollection').checked;
-                        config.EnableSpecialsWithinSeasons = document.querySelector('#EnableSpecialsWithinSeasons').checked;
-                        config.SpecialsPlacementDefaultMode = 'airdate';
-                        config.EnableSpecialsAppendWithoutPlacement = true;
-                        config.SpecialsPlacementModeMap = buildSpecialsPlacementModeMap();
                         config.EnableTmdbOfficialRating = document.querySelector('#EnableTmdbOfficialRating').checked;
                         config.EnableTmdbTags = document.querySelector('#EnableTmdbTags').checked;
                         config.TmdbApiKey = document.querySelector('#TmdbApiKey').value;
@@ -336,6 +344,10 @@
                         config.TmdbProxyType = document.querySelector('#TmdbProxyType').value;
                         config.TmdbProxyHost = document.querySelector('#TmdbProxyHost').value;
                         config.TmdbProxyPort = document.querySelector('#TmdbProxyPort').value;
+                        config.EnableTvdbSpecialsWithinSeasons = document.querySelector('#EnableTvdbSpecialsWithinSeasons').checked;
+                        config.TvdbApiKey = document.querySelector('#TvdbApiKey').value;
+                        config.TvdbPin = document.querySelector('#TvdbPin').value;
+                        config.TvdbHost = document.querySelector('#TvdbHost').value;
                         ApiClient.updatePluginConfiguration(TemplateConfig.pluginUniqueId, config).then(function (result) {
                             Dashboard.processPluginConfigurationUpdateResult(result);
 
@@ -401,154 +413,6 @@
                 });
             }
 
-            function renderSpecialsPlacementModeRows(mapText) {
-                var container = document.querySelector('#SpecialsPlacementModeMapRows');
-                if (!container) {
-                    return;
-                }
-
-                container.innerHTML = '';
-                specialsPlacementExtraLines = [];
-                var lines = (mapText || '').split(/\r?\n/).filter(function (line) {
-                    return line && line.trim();
-                });
-
-                lines.forEach(function (rawLine) {
-                    var line = rawLine.trim();
-                    if (!line || line.startsWith('#')) {
-                        return;
-                    }
-
-                    var parts = line.split('=');
-                    if (parts.length < 2) {
-                        specialsPlacementExtraLines.push(line);
-                        return;
-                    }
-
-                    var key = parts[0].trim();
-                    var value = parts.slice(1).join('=').trim().toLowerCase();
-                    if (!key) {
-                        return;
-                    }
-
-                    var tmdbId = '';
-                    if (key.toLowerCase().startsWith('tmdb:')) {
-                        tmdbId = key.substring(5).trim();
-                    } else if (/^\d+$/.test(key)) {
-                        tmdbId = key;
-                    }
-
-                    if (tmdbId) {
-                        addSpecialsPlacementModeRow(tmdbId, value || 'airdate');
-                    } else {
-                        specialsPlacementExtraLines.push(line);
-                    }
-                });
-
-                if (container.children.length === 0) {
-                    addSpecialsPlacementModeRow('', 'airdate');
-                }
-            }
-
-            function buildSpecialsPlacementModeMap() {
-                var container = document.querySelector('#SpecialsPlacementModeMapRows');
-                if (!container) {
-                    return '';
-                }
-
-                var lines = [];
-                Array.prototype.forEach.call(container.querySelectorAll('.specials-placement-row'), function (row) {
-                    var idInput = row.querySelector('input');
-                    var modeSelect = row.querySelector('select');
-                    var tmdbId = (idInput && idInput.value || '').trim();
-                    var mode = (modeSelect && modeSelect.value || 'airdate').trim();
-                    if (tmdbId) {
-                        lines.push('tmdb:' + tmdbId + '=' + mode);
-                    }
-                });
-
-                specialsPlacementExtraLines.forEach(function (line) {
-                    lines.push(line);
-                });
-
-                return lines.join('\n');
-            }
-
-            function addSpecialsPlacementModeRow(tmdbId, mode) {
-                var container = document.querySelector('#SpecialsPlacementModeMapRows');
-                if (!container) {
-                    return;
-                }
-
-                var row = document.createElement('div');
-                row.className = 'specials-placement-row';
-                row.style.display = 'flex';
-                row.style.gap = '8px';
-                row.style.alignItems = 'center';
-                row.style.marginBottom = '8px';
-
-                var idInput = document.createElement('input');
-                idInput.type = 'text';
-                idInput.value = tmdbId || '';
-                idInput.placeholder = 'TMDb ID';
-                idInput.className = 'emby-input';
-                idInput.style.width = '180px';
-                idInput.style.minWidth = '160px';
-                idInput.style.flex = '0 0 auto';
-
-                var select = document.createElement('select');
-                select.className = 'emby-select-withcolor emby-select';
-                select.style.flex = '1';
-                select.innerHTML = ''
-                    + '<option value="airdate">按发行日期放到对应季末</option>'
-                    + '<option value="airdate-inseason">按发行日期插入季内</option>'
-                    + '<option value="last">保持在 S00</option>';
-                select.value = normalizeSpecialsPlacementMode(mode || 'airdate');
-
-                var addBtn = document.createElement('button');
-                addBtn.setAttribute('is', 'emby-button');
-                addBtn.type = 'button';
-                addBtn.className = 'raised emby-button';
-                addBtn.textContent = '+';
-                addBtn.addEventListener('click', function (e) {
-                    e.preventDefault();
-                    e.stopPropagation();
-                    addSpecialsPlacementModeRow('', 'airdate');
-                });
-
-                var removeBtn = document.createElement('button');
-                removeBtn.setAttribute('is', 'emby-button');
-                removeBtn.type = 'button';
-                removeBtn.className = 'raised emby-button';
-                removeBtn.textContent = '-';
-                removeBtn.addEventListener('click', function (e) {
-                    e.preventDefault();
-                    e.stopPropagation();
-                    container.removeChild(row);
-                    if (container.children.length === 0) {
-                        addSpecialsPlacementModeRow('', 'airdate');
-                    }
-                });
-
-                row.appendChild(idInput);
-                row.appendChild(select);
-                row.appendChild(addBtn);
-                row.appendChild(removeBtn);
-                container.appendChild(row);
-            }
-
-            function normalizeSpecialsPlacementMode(mode) {
-                var value = (mode || '').toLowerCase();
-                if (value === 'airdate' || value === 'date' || value === 'air') {
-                    return 'airdate';
-                }
-
-                if (value === 'airdate-inseason' || value === 'inseason' || value === 'season' || value === 'mid') {
-                    return 'airdate-inseason';
-                }
-
-                return 'last';
-            }
         </script>
     </div>
 </body>

@@ -107,24 +107,24 @@ public class PluginConfiguration : BasePluginConfiguration
     public string TmdbEpisodeGroupMap { get; set; } = string.Empty;
 
     /// <summary>
-    /// Gets or sets specials placement mode map (per series).
+    /// Gets or sets a value indicating whether to use TVDB for specials placement.
     /// </summary>
-    public string SpecialsPlacementModeMap { get; set; } = string.Empty;
+    public bool EnableTvdbSpecialsWithinSeasons { get; set; } = true;
 
     /// <summary>
-    /// Gets or sets a value indicating whether specials are placed within seasons when TMDB provides ordering info.
+    /// Gets or sets TVDB api key.
     /// </summary>
-    public bool EnableSpecialsWithinSeasons { get; set; } = true;
+    public string TvdbApiKey { get; set; } = string.Empty;
 
     /// <summary>
-    /// Gets or sets a value indicating whether to append specials to the end of the target season when no placement info is available.
+    /// Gets or sets TVDB subscriber pin (optional for subscriber keys).
     /// </summary>
-    public bool EnableSpecialsAppendWithoutPlacement { get; set; } = true;
+    public string TvdbPin { get; set; } = string.Empty;
 
     /// <summary>
-    /// Gets or sets the default specials placement mode.
+    /// Gets or sets TVDB api host.
     /// </summary>
-    public string SpecialsPlacementDefaultMode { get; set; } = string.Empty;
+    public string TvdbHost { get; set; } = string.Empty;
 
     /// <summary>
     /// Gets or sets 代理服务器类型，0-禁用，1-http，2-https，3-socket5.
