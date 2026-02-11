@@ -127,6 +127,12 @@ namespace Jellyfin.Plugin.MetaShark.Providers
                 info.SeriesProviderIds.TryGetValue(MetadataProvider.Tvdb.ToString(), out var seriesTvdbId);
                 if (!string.IsNullOrWhiteSpace(seriesTvdbId))
                 {
+                    this.Logger.LogDebug(
+                        "TVDB special placement lookup. tvdbId={TvdbId} s{Season}e{Episode} lang={Lang}",
+                        seriesTvdbId,
+                        seasonNumber,
+                        episodeNumber,
+                        info.MetadataLanguage ?? string.Empty);
                     var placement = await this.TryBuildTvdbSpecialPlacementAsync(seriesTvdbId, episodeNumber, info.MetadataLanguage, cancellationToken)
                         .ConfigureAwait(false);
                     if (placement != null)
@@ -142,6 +148,14 @@ namespace Jellyfin.Plugin.MetaShark.Providers
                             item.AirsBeforeSeasonNumber,
                             item.AirsBeforeEpisodeNumber,
                             item.AirsAfterSeasonNumber);
+                    }
+                    else
+                    {
+                        this.Logger.LogDebug(
+                            "TVDB special placement not found. tvdbId={TvdbId} s{Season}e{Episode}",
+                            seriesTvdbId,
+                            seasonNumber,
+                            episodeNumber);
                     }
                 }
                 else
@@ -320,6 +334,7 @@ namespace Jellyfin.Plugin.MetaShark.Providers
         {
             if (!int.TryParse(seriesTvdbId, out var seriesId) || episodeNumber is null or 0)
             {
+                this.Logger.LogDebug("TVDB placement invalid input. tvdbId={TvdbId} episode={Episode}", seriesTvdbId, episodeNumber ?? 0);
                 return null;
             }
 
@@ -328,12 +343,14 @@ namespace Jellyfin.Plugin.MetaShark.Providers
                 .ConfigureAwait(false);
             if (episodes.Count == 0)
             {
+                this.Logger.LogDebug("TVDB placement empty episode list. tvdbId={TvdbId}", seriesTvdbId);
                 return null;
             }
 
             var match = episodes.FirstOrDefault(e => e.SeasonNumber == 0 && e.Number == episodeNumber);
             if (match == null)
             {
+                this.Logger.LogDebug("TVDB placement no match. tvdbId={TvdbId} episode={Episode}", seriesTvdbId, episodeNumber);
                 return null;
             }
 
