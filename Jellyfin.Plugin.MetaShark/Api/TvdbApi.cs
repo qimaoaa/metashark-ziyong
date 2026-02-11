@@ -73,8 +73,6 @@ namespace Jellyfin.Plugin.MetaShark.Api
         private static readonly Action<ILogger, Exception?> LogTvdbTokenStored =
             LoggerMessage.Define(LogLevel.Debug, new EventId(14, nameof(LogTvdbTokenStored)), "TVDB token stored in cache");
 
-        private static readonly Action<ILogger, Exception?> LogTvdbAnonymousRequest =
-            LoggerMessage.Define(LogLevel.Information, new EventId(16, nameof(LogTvdbAnonymousRequest)), "TVDB request without token");
 
         private readonly ILogger<TvdbApi> logger;
         private readonly MemoryCache memoryCache;
@@ -93,7 +91,7 @@ namespace Jellyfin.Plugin.MetaShark.Api
             var config = MetaSharkPlugin.Instance?.Configuration;
             this.apiKey = config?.TvdbApiKey ?? string.Empty;
             this.pin = config?.TvdbPin ?? string.Empty;
-            this.apiHost = string.IsNullOrWhiteSpace(config?.TvdbHost) ? DefaultApiHost : config.TvdbHost;
+            this.apiHost = NormalizeApiHost(config?.TvdbHost);
 
             this.httpClient = new HttpClient { BaseAddress = new Uri(this.apiHost), Timeout = TimeSpan.FromSeconds(10) };
         }
@@ -255,9 +253,34 @@ namespace Jellyfin.Plugin.MetaShark.Api
             return null;
         }
 
+        private static string NormalizeApiHost(string? value)
+        {
+            if (string.IsNullOrWhiteSpace(value))
+            {
+                return DefaultApiHost;
+            }
+
+            var normalized = value.Trim();
+            if (!normalized.StartsWith("http://", StringComparison.OrdinalIgnoreCase)
+                && !normalized.StartsWith("https://", StringComparison.OrdinalIgnoreCase))
+            {
+                normalized = "https://" + normalized;
+            }
+
+            normalized = normalized.TrimEnd('/');
+            if (!normalized.EndsWith("/v4", StringComparison.OrdinalIgnoreCase))
+            {
+                normalized += "/v4";
+            }
+
+            return normalized;
+        }
+
         private static bool IsEnabled()
         {
-            return MetaSharkPlugin.Instance?.Configuration?.EnableTvdbSpecialsWithinSeasons ?? false;
+            var config = MetaSharkPlugin.Instance?.Configuration;
+            return (config?.EnableTvdbSpecialsWithinSeasons ?? false)
+                && !string.IsNullOrWhiteSpace(config?.TvdbApiKey);
         }
 
         private async Task<string?> EnsureTokenAsync(CancellationToken cancellationToken)
@@ -333,9 +356,7 @@ namespace Jellyfin.Plugin.MetaShark.Api
             var token = await this.EnsureTokenAsync(cancellationToken).ConfigureAwait(false);
             if (string.IsNullOrWhiteSpace(token))
             {
-                LogTvdbAnonymousRequest(this.logger, null);
-                using var request = requestFactory();
-                return await this.httpClient.SendAsync(request, cancellationToken).ConfigureAwait(false);
+                return null;
             }
 
             using var authedRequest = requestFactory();
@@ -351,9 +372,7 @@ namespace Jellyfin.Plugin.MetaShark.Api
             token = await this.EnsureTokenAsync(cancellationToken).ConfigureAwait(false);
             if (string.IsNullOrWhiteSpace(token))
             {
-                LogTvdbAnonymousRequest(this.logger, null);
-                using var retryRequest = requestFactory();
-                return await this.httpClient.SendAsync(retryRequest, cancellationToken).ConfigureAwait(false);
+                return null;
             }
 
             using var retryAuthedRequest = requestFactory();
