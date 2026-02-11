@@ -6,6 +6,7 @@ namespace Jellyfin.Plugin.MetaShark.Api
 {
     using System;
     using System.Collections.Generic;
+    using System.Diagnostics.CodeAnalysis;
     using System.Globalization;
     using System.Net;
     using System.Net.Http;
@@ -140,12 +141,6 @@ namespace Jellyfin.Plugin.MetaShark.Api
             GC.SuppressFinalize(this);
         }
 
-        private bool IsEnabled()
-        {
-            return (MetaSharkPlugin.Instance?.Configuration?.EnableTvdbSpecialsWithinSeasons ?? false)
-                && !string.IsNullOrWhiteSpace(this.apiKey);
-        }
-
         private static DateTime? ParseAiredDate(string? value)
         {
             if (string.IsNullOrWhiteSpace(value))
@@ -168,23 +163,23 @@ namespace Jellyfin.Plugin.MetaShark.Api
                 return null;
             }
 
-            var normalized = value.Trim().ToLowerInvariant();
-            if (normalized.StartsWith("zh", StringComparison.OrdinalIgnoreCase))
+            var normalized = value.Trim().ToUpperInvariant();
+            if (normalized.StartsWith("ZH", StringComparison.Ordinal))
             {
                 return "zho";
             }
 
-            if (normalized.StartsWith("en", StringComparison.OrdinalIgnoreCase))
+            if (normalized.StartsWith("EN", StringComparison.Ordinal))
             {
                 return "eng";
             }
 
-            if (normalized.StartsWith("ja", StringComparison.OrdinalIgnoreCase))
+            if (normalized.StartsWith("JA", StringComparison.Ordinal))
             {
                 return "jpn";
             }
 
-            if (normalized.StartsWith("ko", StringComparison.OrdinalIgnoreCase))
+            if (normalized.StartsWith("KO", StringComparison.Ordinal))
             {
                 return "kor";
             }
@@ -203,6 +198,12 @@ namespace Jellyfin.Plugin.MetaShark.Api
             }
 
             return null;
+        }
+
+        private bool IsEnabled()
+        {
+            return (MetaSharkPlugin.Instance?.Configuration?.EnableTvdbSpecialsWithinSeasons ?? false)
+                && !string.IsNullOrWhiteSpace(this.apiKey);
         }
 
         private async Task<string?> EnsureTokenAsync(CancellationToken cancellationToken)
@@ -228,7 +229,7 @@ namespace Jellyfin.Plugin.MetaShark.Api
                     payload["pin"] = this.pin;
                 }
 
-                var request = new HttpRequestMessage(HttpMethod.Post, "/login")
+                using var request = new HttpRequestMessage(HttpMethod.Post, "/login")
                 {
                     Content = new StringContent(JsonSerializer.Serialize(payload, JsonOptions), Encoding.UTF8, "application/json"),
                 };
@@ -306,18 +307,21 @@ namespace Jellyfin.Plugin.MetaShark.Api
             }
         }
 
+        [SuppressMessage("Performance", "CA1812", Justification = "Deserialized by System.Text.Json")]
         private sealed class TvdbLoginResponse
         {
             [JsonPropertyName("data")]
             public TvdbLoginData? Data { get; set; }
         }
 
+        [SuppressMessage("Performance", "CA1812", Justification = "Deserialized by System.Text.Json")]
         private sealed class TvdbLoginData
         {
             [JsonPropertyName("token")]
             public string? Token { get; set; }
         }
 
+        [SuppressMessage("Performance", "CA1812", Justification = "Deserialized by System.Text.Json")]
         private sealed class TvdbEpisodesResponse
         {
             [JsonPropertyName("data")]
@@ -327,18 +331,21 @@ namespace Jellyfin.Plugin.MetaShark.Api
             public TvdbLinks? Links { get; set; }
         }
 
+        [SuppressMessage("Performance", "CA1812", Justification = "Deserialized by System.Text.Json")]
         private sealed class TvdbEpisodesData
         {
             [JsonPropertyName("episodes")]
             public List<TvdbEpisodeBaseRecord>? Episodes { get; set; }
         }
 
+        [SuppressMessage("Performance", "CA1812", Justification = "Deserialized by System.Text.Json")]
         private sealed class TvdbLinks
         {
             [JsonPropertyName("next")]
             public string? Next { get; set; }
         }
 
+        [SuppressMessage("Performance", "CA1812", Justification = "Deserialized by System.Text.Json")]
         private sealed class TvdbEpisodeBaseRecord
         {
             [JsonPropertyName("seasonNumber")]
@@ -359,20 +366,5 @@ namespace Jellyfin.Plugin.MetaShark.Api
             [JsonPropertyName("aired")]
             public string? Aired { get; set; }
         }
-    }
-
-    public sealed class TvdbEpisode
-    {
-        public int? SeasonNumber { get; set; }
-
-        public int? Number { get; set; }
-
-        public int? AirsBeforeSeason { get; set; }
-
-        public int? AirsBeforeEpisode { get; set; }
-
-        public int? AirsAfterSeason { get; set; }
-
-        public DateTime? Aired { get; set; }
     }
 }
