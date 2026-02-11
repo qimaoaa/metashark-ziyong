@@ -233,6 +233,11 @@ namespace Jellyfin.Plugin.MetaShark.Api
                 normalized += "/v4";
             }
 
+            if (!normalized.EndsWith("/", StringComparison.Ordinal))
+            {
+                normalized += "/";
+            }
+
             return normalized;
         }
 
