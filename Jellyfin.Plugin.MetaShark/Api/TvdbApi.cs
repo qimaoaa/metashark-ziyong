@@ -32,7 +32,7 @@ namespace Jellyfin.Plugin.MetaShark.Api
         };
 
         private static readonly Action<ILogger, int, Exception?> LogTvdbDisabled =
-            LoggerMessage.Define<int>(LogLevel.Debug, new EventId(2, nameof(LogTvdbDisabled)), "TVDB disabled or missing api key. seriesId={SeriesId}");
+            LoggerMessage.Define<int>(LogLevel.Debug, new EventId(2, nameof(LogTvdbDisabled)), "TVDB disabled by config. seriesId={SeriesId}");
 
         private static readonly Action<ILogger, int, string, int, string, Exception?> LogTvdbFetchEpisodes =
             LoggerMessage.Define<int, string, int, string>(LogLevel.Debug, new EventId(3, nameof(LogTvdbFetchEpisodes)), "TVDB fetch episodes. seriesId={SeriesId} seasonType={SeasonType} season={Season} lang={Lang}");
@@ -45,6 +45,9 @@ namespace Jellyfin.Plugin.MetaShark.Api
 
         private static readonly Action<ILogger, int, Exception?> LogTvdbRequestFailed =
             LoggerMessage.Define<int>(LogLevel.Debug, new EventId(6, nameof(LogTvdbRequestFailed)), "TVDB request failed. status={StatusCode}");
+
+        private static readonly Action<ILogger, int, string, Exception?> LogTvdbRequestFailedInfo =
+            LoggerMessage.Define<int, string>(LogLevel.Information, new EventId(15, nameof(LogTvdbRequestFailedInfo)), "TVDB request failed. status={StatusCode} url={Url}");
 
         private static readonly Action<ILogger, int, Exception?> LogTvdbMissingEpisodes =
             LoggerMessage.Define<int>(LogLevel.Debug, new EventId(7, nameof(LogTvdbMissingEpisodes)), "TVDB response missing episodes. seriesId={SeriesId}");
@@ -69,6 +72,9 @@ namespace Jellyfin.Plugin.MetaShark.Api
 
         private static readonly Action<ILogger, Exception?> LogTvdbTokenStored =
             LoggerMessage.Define(LogLevel.Debug, new EventId(14, nameof(LogTvdbTokenStored)), "TVDB token stored in cache");
+
+        private static readonly Action<ILogger, Exception?> LogTvdbAnonymousRequest =
+            LoggerMessage.Define(LogLevel.Information, new EventId(16, nameof(LogTvdbAnonymousRequest)), "TVDB request without token");
 
         private readonly ILogger<TvdbApi> logger;
         private readonly MemoryCache memoryCache;
@@ -99,7 +105,7 @@ namespace Jellyfin.Plugin.MetaShark.Api
             string? language,
             CancellationToken cancellationToken)
         {
-            if (!this.IsEnabled())
+            if (!IsEnabled())
             {
                 LogTvdbDisabled(this.logger, seriesId, null);
                 return Array.Empty<TvdbEpisode>();
@@ -131,6 +137,7 @@ namespace Jellyfin.Plugin.MetaShark.Api
                     if (!response.IsSuccessStatusCode)
                     {
                         LogTvdbRequestFailed(this.logger, (int)response.StatusCode, null);
+                        LogTvdbRequestFailedInfo(this.logger, (int)response.StatusCode, url, null);
                         this.logTvdbError(this.logger, nameof(this.GetSeriesEpisodesAsync), new HttpRequestException(response.StatusCode.ToString()));
                         return episodes;
                     }
@@ -248,10 +255,9 @@ namespace Jellyfin.Plugin.MetaShark.Api
             return null;
         }
 
-        private bool IsEnabled()
+        private static bool IsEnabled()
         {
-            return (MetaSharkPlugin.Instance?.Configuration?.EnableTvdbSpecialsWithinSeasons ?? false)
-                && !string.IsNullOrWhiteSpace(this.apiKey);
+            return MetaSharkPlugin.Instance?.Configuration?.EnableTvdbSpecialsWithinSeasons ?? false;
         }
 
         private async Task<string?> EnsureTokenAsync(CancellationToken cancellationToken)
@@ -327,12 +333,14 @@ namespace Jellyfin.Plugin.MetaShark.Api
             var token = await this.EnsureTokenAsync(cancellationToken).ConfigureAwait(false);
             if (string.IsNullOrWhiteSpace(token))
             {
-                return null;
+                LogTvdbAnonymousRequest(this.logger, null);
+                using var request = requestFactory();
+                return await this.httpClient.SendAsync(request, cancellationToken).ConfigureAwait(false);
             }
 
-            using var request = requestFactory();
-            request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", token);
-            var response = await this.httpClient.SendAsync(request, cancellationToken).ConfigureAwait(false);
+            using var authedRequest = requestFactory();
+            authedRequest.Headers.Authorization = new AuthenticationHeaderValue("Bearer", token);
+            var response = await this.httpClient.SendAsync(authedRequest, cancellationToken).ConfigureAwait(false);
             if (response.StatusCode != HttpStatusCode.Unauthorized)
             {
                 return response;
@@ -343,12 +351,14 @@ namespace Jellyfin.Plugin.MetaShark.Api
             token = await this.EnsureTokenAsync(cancellationToken).ConfigureAwait(false);
             if (string.IsNullOrWhiteSpace(token))
             {
-                return null;
+                LogTvdbAnonymousRequest(this.logger, null);
+                using var retryRequest = requestFactory();
+                return await this.httpClient.SendAsync(retryRequest, cancellationToken).ConfigureAwait(false);
             }
 
-            using var retryRequest = requestFactory();
-            retryRequest.Headers.Authorization = new AuthenticationHeaderValue("Bearer", token);
-            return await this.httpClient.SendAsync(retryRequest, cancellationToken).ConfigureAwait(false);
+            using var retryAuthedRequest = requestFactory();
+            retryAuthedRequest.Headers.Authorization = new AuthenticationHeaderValue("Bearer", token);
+            return await this.httpClient.SendAsync(retryAuthedRequest, cancellationToken).ConfigureAwait(false);
         }
 
         private void Dispose(bool disposing)
