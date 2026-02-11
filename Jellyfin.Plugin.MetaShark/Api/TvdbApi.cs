@@ -22,7 +22,7 @@ namespace Jellyfin.Plugin.MetaShark.Api
 
     public sealed class TvdbApi : IDisposable
     {
-        private const string DefaultApiHost = "https://api4.thetvdb.com/v4";
+        private const string DefaultApiHost = "https://api4.thetvdb.com/v4/";
         private const string TokenCacheKey = "tvdb_token";
         private const int MaxPageCount = 20;
 
