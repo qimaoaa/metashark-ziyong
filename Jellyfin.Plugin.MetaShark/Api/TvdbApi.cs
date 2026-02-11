@@ -72,6 +72,8 @@ namespace Jellyfin.Plugin.MetaShark.Api
 
         private static readonly Action<ILogger, Exception?> LogTvdbTokenStored =
             LoggerMessage.Define(LogLevel.Debug, new EventId(14, nameof(LogTvdbTokenStored)), "TVDB token stored in cache");
+        private static readonly Action<ILogger, string, bool, bool, Exception?> LogTvdbConfigLoaded =
+            LoggerMessage.Define<string, bool, bool>(LogLevel.Information, new EventId(17, nameof(LogTvdbConfigLoaded)), "TVDB config loaded. host={Host} hasKey={HasKey} hasPin={HasPin}");
 
 
         private readonly ILogger<TvdbApi> logger;
@@ -94,6 +96,8 @@ namespace Jellyfin.Plugin.MetaShark.Api
             this.apiHost = NormalizeApiHost(config?.TvdbHost);
 
             this.httpClient = new HttpClient { BaseAddress = new Uri(this.apiHost), Timeout = TimeSpan.FromSeconds(10) };
+
+            LogTvdbConfigLoaded(this.logger, this.apiHost, !string.IsNullOrWhiteSpace(this.apiKey), !string.IsNullOrWhiteSpace(this.pin), null);
         }
 
         public async Task<IReadOnlyList<TvdbEpisode>> GetSeriesEpisodesAsync(
@@ -112,8 +116,8 @@ namespace Jellyfin.Plugin.MetaShark.Api
             var episodes = new List<TvdbEpisode>();
             var lang = NormalizeLanguage(language);
             var basePath = string.IsNullOrWhiteSpace(lang)
-                ? $"/series/{seriesId}/episodes/{seasonType}"
-                : $"/series/{seriesId}/episodes/{seasonType}/{lang}";
+                ? $"series/{seriesId}/episodes/{seasonType}"
+                : $"series/{seriesId}/episodes/{seasonType}/{lang}";
 
             LogTvdbFetchEpisodes(this.logger, seriesId, seasonType, seasonNumber, lang ?? string.Empty, null);
 
@@ -209,6 +213,29 @@ namespace Jellyfin.Plugin.MetaShark.Api
             return null;
         }
 
+        private static string NormalizeApiHost(string? value)
+        {
+            if (string.IsNullOrWhiteSpace(value))
+            {
+                return DefaultApiHost;
+            }
+
+            var normalized = value.Trim();
+            if (!normalized.StartsWith("http://", StringComparison.OrdinalIgnoreCase)
+                && !normalized.StartsWith("https://", StringComparison.OrdinalIgnoreCase))
+            {
+                normalized = "https://" + normalized;
+            }
+
+            normalized = normalized.TrimEnd('/');
+            if (!normalized.EndsWith("/v4", StringComparison.OrdinalIgnoreCase))
+            {
+                normalized += "/v4";
+            }
+
+            return normalized;
+        }
+
         private static string? NormalizeLanguage(string? value)
         {
             if (string.IsNullOrWhiteSpace(value))
@@ -253,28 +280,6 @@ namespace Jellyfin.Plugin.MetaShark.Api
             return null;
         }
 
-        private static string NormalizeApiHost(string? value)
-        {
-            if (string.IsNullOrWhiteSpace(value))
-            {
-                return DefaultApiHost;
-            }
-
-            var normalized = value.Trim();
-            if (!normalized.StartsWith("http://", StringComparison.OrdinalIgnoreCase)
-                && !normalized.StartsWith("https://", StringComparison.OrdinalIgnoreCase))
-            {
-                normalized = "https://" + normalized;
-            }
-
-            normalized = normalized.TrimEnd('/');
-            if (!normalized.EndsWith("/v4", StringComparison.OrdinalIgnoreCase))
-            {
-                normalized += "/v4";
-            }
-
-            return normalized;
-        }
 
         private static bool IsEnabled()
         {
@@ -308,7 +313,7 @@ namespace Jellyfin.Plugin.MetaShark.Api
                     payload["pin"] = this.pin;
                 }
 
-                using var request = new HttpRequestMessage(HttpMethod.Post, "/login")
+                using var request = new HttpRequestMessage(HttpMethod.Post, "login")
                 {
                     Content = new StringContent(JsonSerializer.Serialize(payload, JsonOptions), Encoding.UTF8, "application/json"),
                 };
