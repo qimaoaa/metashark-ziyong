@@ -39,6 +39,12 @@ namespace Jellyfin.Plugin.MetaShark.Providers
         private static readonly Action<ILogger, string, int, Exception?> LogTvdbPlacementNoMatch =
             LoggerMessage.Define<string, int>(LogLevel.Debug, new EventId(6, nameof(LogTvdbPlacementNoMatch)), "TVDB placement no match. tvdbId={TvdbId} episode={Episode}");
 
+        private static readonly Action<ILogger, string, Exception?> LogTvdbIdMissing =
+            LoggerMessage.Define<string>(LogLevel.Debug, new EventId(7, nameof(LogTvdbIdMissing)), "TVDB id not found for series. source={Source}");
+
+        private static readonly Action<ILogger, string, Exception?> LogTvdbIdResolved =
+            LoggerMessage.Define<string>(LogLevel.Debug, new EventId(8, nameof(LogTvdbIdResolved)), "TVDB id resolved: {TvdbId}");
+
         private readonly MemoryCache memoryCache;
         private readonly TvdbApi tvdbApi;
 
@@ -139,7 +145,8 @@ namespace Jellyfin.Plugin.MetaShark.Providers
 
             if (seasonNumber == 0 && Config.EnableTvdbSpecialsWithinSeasons)
             {
-                info.SeriesProviderIds.TryGetValue(MetadataProvider.Tvdb.ToString(), out var seriesTvdbId);
+                var seriesTvdbId = await this.ResolveSeriesTvdbIdAsync(info, seriesTmdbId, cancellationToken)
+                    .ConfigureAwait(false);
                 if (!string.IsNullOrWhiteSpace(seriesTvdbId))
                 {
                     LogTvdbPlacementLookup(
@@ -372,6 +379,43 @@ namespace Jellyfin.Plugin.MetaShark.Providers
                 AirsBeforeEpisodeNumber = match.AirsBeforeEpisode,
                 AirsAfterSeasonNumber = match.AirsAfterSeason,
             };
+        }
+
+        private async Task<string?> ResolveSeriesTvdbIdAsync(EpisodeInfo info, string? seriesTmdbId, CancellationToken cancellationToken)
+        {
+            if (info.SeriesProviderIds.TryGetValue(MetadataProvider.Tvdb.ToString(), out var seriesTvdbId)
+                && !string.IsNullOrWhiteSpace(seriesTvdbId))
+            {
+                LogTvdbIdResolved(this.Logger, seriesTvdbId, null);
+                return seriesTvdbId;
+            }
+
+            var episodeItem = this.LibraryManager.FindByPath(info.Path, false) as Episode;
+            var seriesItem = episodeItem?.Series;
+            seriesTvdbId = seriesItem?.GetProviderId(MetadataProvider.Tvdb);
+            if (!string.IsNullOrWhiteSpace(seriesTvdbId))
+            {
+                info.SeriesProviderIds[MetadataProvider.Tvdb.ToString()] = seriesTvdbId;
+                LogTvdbIdResolved(this.Logger, seriesTvdbId, null);
+                return seriesTvdbId;
+            }
+
+            if (!string.IsNullOrWhiteSpace(seriesTmdbId) && int.TryParse(seriesTmdbId, out var tmdbId))
+            {
+                var series = await this.TmdbApi
+                    .GetSeriesAsync(tmdbId, info.MetadataLanguage ?? string.Empty, info.MetadataLanguage ?? string.Empty, cancellationToken)
+                    .ConfigureAwait(false);
+                seriesTvdbId = series?.ExternalIds?.TvdbId;
+                if (!string.IsNullOrWhiteSpace(seriesTvdbId))
+                {
+                    info.SeriesProviderIds[MetadataProvider.Tvdb.ToString()] = seriesTvdbId;
+                    LogTvdbIdResolved(this.Logger, seriesTvdbId, null);
+                    return seriesTvdbId;
+                }
+            }
+
+            LogTvdbIdMissing(this.Logger, "EpisodeInfo/SeriesItem/TmdbExternalIds", null);
+            return null;
         }
 
         private MetadataResult<Episode>? HandleAnimeExtras(EpisodeInfo info)
