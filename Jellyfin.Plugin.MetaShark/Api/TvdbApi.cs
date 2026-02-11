@@ -31,6 +31,45 @@ namespace Jellyfin.Plugin.MetaShark.Api
             PropertyNameCaseInsensitive = true,
         };
 
+        private static readonly Action<ILogger, int, Exception?> LogTvdbDisabled =
+            LoggerMessage.Define<int>(LogLevel.Debug, new EventId(2, nameof(LogTvdbDisabled)), "TVDB disabled or missing api key. seriesId={SeriesId}");
+
+        private static readonly Action<ILogger, int, string, int, string, Exception?> LogTvdbFetchEpisodes =
+            LoggerMessage.Define<int, string, int, string>(LogLevel.Debug, new EventId(3, nameof(LogTvdbFetchEpisodes)), "TVDB fetch episodes. seriesId={SeriesId} seasonType={SeasonType} season={Season} lang={Lang}");
+
+        private static readonly Action<ILogger, int, string, Exception?> LogTvdbRequestPage =
+            LoggerMessage.Define<int, string>(LogLevel.Debug, new EventId(4, nameof(LogTvdbRequestPage)), "TVDB request page {Page}: {Url}");
+
+        private static readonly Action<ILogger, int, Exception?> LogTvdbNullResponse =
+            LoggerMessage.Define<int>(LogLevel.Debug, new EventId(5, nameof(LogTvdbNullResponse)), "TVDB request returned null response. seriesId={SeriesId}");
+
+        private static readonly Action<ILogger, int, Exception?> LogTvdbRequestFailed =
+            LoggerMessage.Define<int>(LogLevel.Debug, new EventId(6, nameof(LogTvdbRequestFailed)), "TVDB request failed. status={StatusCode}");
+
+        private static readonly Action<ILogger, int, Exception?> LogTvdbMissingEpisodes =
+            LoggerMessage.Define<int>(LogLevel.Debug, new EventId(7, nameof(LogTvdbMissingEpisodes)), "TVDB response missing episodes. seriesId={SeriesId}");
+
+        private static readonly Action<ILogger, int, Exception?> LogTvdbEpisodesPageCount =
+            LoggerMessage.Define<int>(LogLevel.Debug, new EventId(8, nameof(LogTvdbEpisodesPageCount)), "TVDB episodes page count={Count}");
+
+        private static readonly Action<ILogger, int, Exception?> LogTvdbPaginationEnded =
+            LoggerMessage.Define<int>(LogLevel.Debug, new EventId(9, nameof(LogTvdbPaginationEnded)), "TVDB pagination ended at page {Page}");
+
+        private static readonly Action<ILogger, Exception?> LogTvdbTokenCacheHit =
+            LoggerMessage.Define(LogLevel.Debug, new EventId(10, nameof(LogTvdbTokenCacheHit)), "TVDB token cache hit");
+
+        private static readonly Action<ILogger, Exception?> LogTvdbApiKeyMissing =
+            LoggerMessage.Define(LogLevel.Debug, new EventId(11, nameof(LogTvdbApiKeyMissing)), "TVDB api key not configured");
+
+        private static readonly Action<ILogger, int, Exception?> LogTvdbLoginFailed =
+            LoggerMessage.Define<int>(LogLevel.Debug, new EventId(12, nameof(LogTvdbLoginFailed)), "TVDB login failed. status={StatusCode}");
+
+        private static readonly Action<ILogger, Exception?> LogTvdbEmptyToken =
+            LoggerMessage.Define(LogLevel.Debug, new EventId(13, nameof(LogTvdbEmptyToken)), "TVDB login returned empty token");
+
+        private static readonly Action<ILogger, Exception?> LogTvdbTokenStored =
+            LoggerMessage.Define(LogLevel.Debug, new EventId(14, nameof(LogTvdbTokenStored)), "TVDB token stored in cache");
+
         private readonly ILogger<TvdbApi> logger;
         private readonly MemoryCache memoryCache;
         private readonly HttpClient httpClient;
@@ -62,7 +101,7 @@ namespace Jellyfin.Plugin.MetaShark.Api
         {
             if (!this.IsEnabled())
             {
-                this.logger.LogDebug("TVDB disabled or missing api key. seriesId={SeriesId}", seriesId);
+                LogTvdbDisabled(this.logger, seriesId, null);
                 return Array.Empty<TvdbEpisode>();
             }
 
@@ -72,17 +111,12 @@ namespace Jellyfin.Plugin.MetaShark.Api
                 ? $"/series/{seriesId}/episodes/{seasonType}"
                 : $"/series/{seriesId}/episodes/{seasonType}/{lang}";
 
-            this.logger.LogDebug(
-                "TVDB fetch episodes. seriesId={SeriesId} seasonType={SeasonType} season={Season} lang={Lang}",
-                seriesId,
-                seasonType,
-                seasonNumber,
-                lang ?? string.Empty);
+            LogTvdbFetchEpisodes(this.logger, seriesId, seasonType, seasonNumber, lang ?? string.Empty, null);
 
             for (var page = 0; page < MaxPageCount; page++)
             {
                 var url = $"{basePath}?page={page.ToString(CultureInfo.InvariantCulture)}&season={seasonNumber.ToString(CultureInfo.InvariantCulture)}";
-                this.logger.LogDebug("TVDB request page {Page}: {Url}", page, url);
+                LogTvdbRequestPage(this.logger, page, url, null);
                 TvdbEpisodesResponse? responsePayload;
                 try
                 {
@@ -90,13 +124,13 @@ namespace Jellyfin.Plugin.MetaShark.Api
                         .ConfigureAwait(false);
                     if (response == null)
                     {
-                        this.logger.LogDebug("TVDB request returned null response. seriesId={SeriesId}", seriesId);
+                        LogTvdbNullResponse(this.logger, seriesId, null);
                         return episodes;
                     }
 
                     if (!response.IsSuccessStatusCode)
                     {
-                        this.logger.LogDebug("TVDB request failed. status={StatusCode}", (int)response.StatusCode);
+                        LogTvdbRequestFailed(this.logger, (int)response.StatusCode, null);
                         this.logTvdbError(this.logger, nameof(this.GetSeriesEpisodesAsync), new HttpRequestException(response.StatusCode.ToString()));
                         return episodes;
                     }
@@ -121,11 +155,11 @@ namespace Jellyfin.Plugin.MetaShark.Api
 
                 if (responsePayload?.Data?.Episodes == null)
                 {
-                    this.logger.LogDebug("TVDB response missing episodes. seriesId={SeriesId}", seriesId);
+                    LogTvdbMissingEpisodes(this.logger, seriesId, null);
                     return episodes;
                 }
 
-                this.logger.LogDebug("TVDB episodes page count={Count}", responsePayload.Data.Episodes.Count);
+                LogTvdbEpisodesPageCount(this.logger, responsePayload.Data.Episodes.Count, null);
                 foreach (var episode in responsePayload.Data.Episodes)
                 {
                     episodes.Add(new TvdbEpisode
@@ -141,7 +175,7 @@ namespace Jellyfin.Plugin.MetaShark.Api
 
                 if (string.IsNullOrWhiteSpace(responsePayload.Links?.Next))
                 {
-                    this.logger.LogDebug("TVDB pagination ended at page {Page}", page);
+                    LogTvdbPaginationEnded(this.logger, page, null);
                     break;
                 }
             }
@@ -224,13 +258,13 @@ namespace Jellyfin.Plugin.MetaShark.Api
         {
             if (this.memoryCache.TryGetValue<string>(TokenCacheKey, out var token) && !string.IsNullOrWhiteSpace(token))
             {
-                this.logger.LogDebug("TVDB token cache hit");
+                LogTvdbTokenCacheHit(this.logger, null);
                 return token;
             }
 
             if (string.IsNullOrWhiteSpace(this.apiKey))
             {
-                this.logger.LogDebug("TVDB api key not configured");
+                LogTvdbApiKeyMissing(this.logger, null);
                 return null;
             }
 
@@ -253,7 +287,7 @@ namespace Jellyfin.Plugin.MetaShark.Api
                 using var response = await this.httpClient.SendAsync(request, cancellationToken).ConfigureAwait(false);
                 if (!response.IsSuccessStatusCode)
                 {
-                    this.logger.LogDebug("TVDB login failed. status={StatusCode}", (int)response.StatusCode);
+                    LogTvdbLoginFailed(this.logger, (int)response.StatusCode, null);
                     this.logTvdbError(this.logger, nameof(this.EnsureTokenAsync), new HttpRequestException(response.StatusCode.ToString()));
                     return null;
                 }
@@ -263,13 +297,13 @@ namespace Jellyfin.Plugin.MetaShark.Api
                 token = login?.Data?.Token;
                 if (string.IsNullOrWhiteSpace(token))
                 {
-                    this.logger.LogDebug("TVDB login returned empty token");
+                    LogTvdbEmptyToken(this.logger, null);
                     return null;
                 }
 
                 var options = new MemoryCacheEntryOptions { AbsoluteExpirationRelativeToNow = TimeSpan.FromDays(20) };
                 this.memoryCache.Set(TokenCacheKey, token, options);
-                this.logger.LogDebug("TVDB token stored in cache");
+                LogTvdbTokenStored(this.logger, null);
                 return token;
             }
             catch (TaskCanceledException ex) when (!cancellationToken.IsCancellationRequested)
