@@ -158,6 +158,11 @@ namespace Jellyfin.Plugin.MetaShark.Providers
                     item.SetProviderId(MetadataProvider.Tmdb, tmdbId);
                 }
 
+                if (!string.IsNullOrEmpty(tmdbId))
+                {
+                    await this.TryPopulateTvExternalIdsFromTmdbAsync(item, tmdbId, info, cancellationToken).ConfigureAwait(false);
+                }
+
                 // 通过imdb获取电影分级信息
                 if (Config.EnableTmdbOfficialRating && !string.IsNullOrEmpty(tmdbId))
                 {
@@ -373,6 +378,35 @@ namespace Jellyfin.Plugin.MetaShark.Providers
                             .GetSeriesAsync(Convert.ToInt32(tmdbId, CultureInfo.InvariantCulture), info.MetadataLanguage, info.MetadataLanguage, cancellationToken)
                             .ConfigureAwait(false);
             return this.GetTmdbOfficialRatingByData(tvShow, info.MetadataCountryCode);
+        }
+
+        private async Task TryPopulateTvExternalIdsFromTmdbAsync(Series series, string tmdbId, ItemLookupInfo info, CancellationToken cancellationToken)
+        {
+            if (!int.TryParse(tmdbId, NumberStyles.Integer, CultureInfo.InvariantCulture, out var tmdbNumericId))
+            {
+                return;
+            }
+
+            var tvShow = await this.TmdbApi
+                .GetSeriesAsync(tmdbNumericId, info.MetadataLanguage, info.MetadataLanguage, cancellationToken)
+                .ConfigureAwait(false);
+
+            var externalIds = tvShow?.ExternalIds;
+            if (externalIds == null)
+            {
+                return;
+            }
+
+            if (string.IsNullOrWhiteSpace(series.GetProviderId(MetadataProvider.Imdb)) && !string.IsNullOrWhiteSpace(externalIds.ImdbId))
+            {
+                series.SetProviderId(MetadataProvider.Imdb, externalIds.ImdbId);
+            }
+
+            if (!string.IsNullOrWhiteSpace(externalIds.TvdbId))
+            {
+                series.SetProviderId(MetadataProvider.Tvdb, externalIds.TvdbId);
+                this.Log("Set series tvdb id by tmdb external ids. tmdbId: {0} tvdbId: {1}", tmdbId, externalIds.TvdbId);
+            }
         }
 
         private IEnumerable<PersonInfo> GetPersons(TvShow seriesResult)

@@ -72,9 +72,9 @@ namespace Jellyfin.Plugin.MetaShark.Api
 
         private static readonly Action<ILogger, Exception?> LogTvdbTokenStored =
             LoggerMessage.Define(LogLevel.Debug, new EventId(14, nameof(LogTvdbTokenStored)), "TVDB token stored in cache");
+
         private static readonly Action<ILogger, string, bool, bool, Exception?> LogTvdbConfigLoaded =
             LoggerMessage.Define<string, bool, bool>(LogLevel.Information, new EventId(17, nameof(LogTvdbConfigLoaded)), "TVDB config loaded. host={Host} hasKey={HasKey} hasPin={HasPin}");
-
 
         private readonly ILogger<TvdbApi> logger;
         private readonly MemoryCache memoryCache;
@@ -233,7 +233,7 @@ namespace Jellyfin.Plugin.MetaShark.Api
                 normalized += "/v4";
             }
 
-            if (!normalized.EndsWith("/", StringComparison.Ordinal))
+            if (!normalized.EndsWith('/'))
             {
                 normalized += "/";
             }
@@ -284,7 +284,6 @@ namespace Jellyfin.Plugin.MetaShark.Api
 
             return null;
         }
-
 
         private static bool IsEnabled()
         {
