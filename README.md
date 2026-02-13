@@ -10,6 +10,6 @@ AI改的仅自用
 
 - 支持 TMDb 剧集组映射
 - 可选写入 TMDb 关键词标签
-- TMDb 特典自定义插入季内方式
+- Season 0 通过tvdb的Airs before/after字段 插入季内
 
 
