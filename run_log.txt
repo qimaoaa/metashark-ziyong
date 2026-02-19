@@ -1,0 +1,30 @@
+build	Set up job	﻿2026-02-19T15:53:38.7932363Z Current runner version: '2.331.0'
+build	Set up job	2026-02-19T15:53:38.7956579Z ##[group]Runner Image Provisioner
+build	Set up job	2026-02-19T15:53:38.7957364Z Hosted Compute Agent
+build	Set up job	2026-02-19T15:53:38.7957865Z Version: 20260213.493
+build	Set up job	2026-02-19T15:53:38.7958501Z Commit: 5c115507f6dd24b8de37d8bbe0bb4509d0cc0fa3
+build	Set up job	2026-02-19T15:53:38.7959091Z Build Date: 2026-02-13T00:28:41Z
+build	Set up job	2026-02-19T15:53:38.7959668Z Worker ID: {0916ac05-5f85-4f59-8efc-fd8646094c27}
+build	Set up job	2026-02-19T15:53:38.7960317Z Azure Region: westcentralus
+build	Set up job	2026-02-19T15:53:38.7960833Z ##[endgroup]
+build	Set up job	2026-02-19T15:53:38.7962084Z ##[group]Operating System
+build	Set up job	2026-02-19T15:53:38.7962677Z Ubuntu
+build	Set up job	2026-02-19T15:53:38.7963066Z 24.04.3
+build	Set up job	2026-02-19T15:53:38.7963708Z LTS
+build	Set up job	2026-02-19T15:53:38.7964180Z ##[endgroup]
+build	Set up job	2026-02-19T15:53:38.7964596Z ##[group]Runner Image
+build	Set up job	2026-02-19T15:53:38.7965104Z Image: ubuntu-24.04
+build	Set up job	2026-02-19T15:53:38.7965556Z Version: 20260217.30.1
+build	Set up job	2026-02-19T15:53:38.7966479Z Included Software: https://github.com/actions/runner-images/blob/ubuntu24/20260217.30/images/ubuntu/Ubuntu2404-Readme.md
+build	Set up job	2026-02-19T15:53:38.7967937Z Image Release: https://github.com/actions/runner-images/releases/tag/ubuntu24%2F20260217.30
+build	Set up job	2026-02-19T15:53:38.7968721Z ##[endgroup]
+build	Set up job	2026-02-19T15:53:38.7969629Z ##[group]GITHUB_TOKEN Permissions
+build	Set up job	2026-02-19T15:53:38.7971484Z Contents: read
+build	Set up job	2026-02-19T15:53:38.7971964Z Metadata: read
+build	Set up job	2026-02-19T15:53:38.7972382Z Packages: read
+build	Set up job	2026-02-19T15:53:38.7972892Z ##[endgroup]
+build	Set up job	2026-02-19T15:53:38.7975096Z Secret source: Actions
+build	Set up job	2026-02-19T15:53:38.7975802Z Prepare workflow directory
+build	Set up job	2026-02-19T15:53:38.8339679Z Prepare all required actions
+build	Set up job	2026-02-19T15:53:38.8378050Z Getting action download info
+build	Set up job	2026-02-19T15:53:39.2254619Z ##[error]This request has been automatically failed because it uses a deprecated version of `actions/upload-artifact: v3`. Learn more: https://github.blog/changelog/2024-04-16-deprecation-notice-v3-of-the-artifact-actions/

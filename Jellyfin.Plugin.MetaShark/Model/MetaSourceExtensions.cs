@@ -25,6 +25,11 @@ namespace Jellyfin.Plugin.MetaShark.Model
                 return MetaSource.Tmdb;
             }
 
+            if (str.StartsWith("tvdb", StringComparison.OrdinalIgnoreCase))
+            {
+                return MetaSource.Tvdb;
+            }
+
             return MetaSource.None;
         }
     }

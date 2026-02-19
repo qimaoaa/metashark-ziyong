@@ -42,7 +42,7 @@ namespace Jellyfin.Plugin.MetaShark.Test
 
             Task.Run(async () =>
             {
-                var provider = new SeriesProvider(httpClientFactory, loggerFactory, libraryManagerStub.Object, httpContextAccessorStub.Object, doubanApi, tmdbApi, omdbApi, imdbApi);
+                var provider = new SeriesProvider(httpClientFactory, loggerFactory, libraryManagerStub.Object, httpContextAccessorStub.Object, doubanApi, tmdbApi, omdbApi, imdbApi, null!);
                 var result = await provider.GetMetadata(info, CancellationToken.None);
                 Assert.IsNotNull(result);
 
@@ -67,7 +67,7 @@ namespace Jellyfin.Plugin.MetaShark.Test
             {
                 try
                 {
-                    var provider = new SeriesProvider(httpClientFactory, loggerFactory, libraryManagerStub.Object, httpContextAccessorStub.Object, doubanApi, tmdbApi, omdbApi, imdbApi);
+                    var provider = new SeriesProvider(httpClientFactory, loggerFactory, libraryManagerStub.Object, httpContextAccessorStub.Object, doubanApi, tmdbApi, omdbApi, imdbApi, null!);
                     var result = await provider.GetMetadata(info, CancellationToken.None);
                     Assert.AreEqual(result.Item.Name, "命运/冠位指定嘉年华 公元2020奥林匹亚英灵限界大祭");
                     Assert.AreEqual(result.Item.OriginalTitle, "Fate/Grand Carnival");

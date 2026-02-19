@@ -5,8 +5,10 @@
 namespace Jellyfin.Plugin.MetaShark
 {
     using Jellyfin.Plugin.MetaShark.Api;
+    using Jellyfin.Plugin.MetaShark.Providers.ExternalId;
     using MediaBrowser.Controller;
     using MediaBrowser.Controller.Plugins;
+    using MediaBrowser.Controller.Providers;
     using Microsoft.Extensions.DependencyInjection;
     using Microsoft.Extensions.Logging;
 
@@ -37,6 +39,15 @@ namespace Jellyfin.Plugin.MetaShark
             {
                 return new TvdbApi(ctx.GetRequiredService<ILoggerFactory>());
             });
+
+            serviceCollection.AddSingleton<IExternalId, DoubanExternalId>();
+            serviceCollection.AddSingleton<IExternalId, DoubanPersonExternalId>();
+            serviceCollection.AddSingleton<IExternalId, TvdbSeriesExternalId>();
+            serviceCollection.AddSingleton<IExternalId, TvdbSeriesSlugExternalId>();
+            serviceCollection.AddSingleton<IExternalId, TvdbMovieExternalId>();
+            serviceCollection.AddSingleton<IExternalId, TvdbMovieSlugExternalId>();
+            serviceCollection.AddSingleton<IExternalId, TvdbSeasonExternalId>();
+            serviceCollection.AddSingleton<IExternalId, TvdbEpisodeExternalId>();
         }
     }
 }

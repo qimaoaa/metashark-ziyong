@@ -1,0 +1,30 @@
+build	Set up job	﻿2026-02-19T15:37:00.2267383Z Current runner version: '2.331.0'
+build	Set up job	2026-02-19T15:37:00.2293597Z ##[group]Runner Image Provisioner
+build	Set up job	2026-02-19T15:37:00.2294402Z Hosted Compute Agent
+build	Set up job	2026-02-19T15:37:00.2295229Z Version: 20260213.493
+build	Set up job	2026-02-19T15:37:00.2295856Z Commit: 5c115507f6dd24b8de37d8bbe0bb4509d0cc0fa3
+build	Set up job	2026-02-19T15:37:00.2296546Z Build Date: 2026-02-13T00:28:41Z
+build	Set up job	2026-02-19T15:37:00.2297403Z Worker ID: {d84e0870-0bcc-4504-8491-45d6373439b7}
+build	Set up job	2026-02-19T15:37:00.2298149Z Azure Region: eastus
+build	Set up job	2026-02-19T15:37:00.2298716Z ##[endgroup]
+build	Set up job	2026-02-19T15:37:00.2300170Z ##[group]Operating System
+build	Set up job	2026-02-19T15:37:00.2300750Z Ubuntu
+build	Set up job	2026-02-19T15:37:00.2301213Z 24.04.3
+build	Set up job	2026-02-19T15:37:00.2301771Z LTS
+build	Set up job	2026-02-19T15:37:00.2302238Z ##[endgroup]
+build	Set up job	2026-02-19T15:37:00.2302694Z ##[group]Runner Image
+build	Set up job	2026-02-19T15:37:00.2303297Z Image: ubuntu-24.04
+build	Set up job	2026-02-19T15:37:00.2303775Z Version: 20260217.30.1
+build	Set up job	2026-02-19T15:37:00.2305098Z Included Software: https://github.com/actions/runner-images/blob/ubuntu24/20260217.30/images/ubuntu/Ubuntu2404-Readme.md
+build	Set up job	2026-02-19T15:37:00.2307062Z Image Release: https://github.com/actions/runner-images/releases/tag/ubuntu24%2F20260217.30
+build	Set up job	2026-02-19T15:37:00.2308025Z ##[endgroup]
+build	Set up job	2026-02-19T15:37:00.2309112Z ##[group]GITHUB_TOKEN Permissions
+build	Set up job	2026-02-19T15:37:00.2310874Z Contents: read
+build	Set up job	2026-02-19T15:37:00.2311585Z Metadata: read
+build	Set up job	2026-02-19T15:37:00.2312108Z Packages: read
+build	Set up job	2026-02-19T15:37:00.2312573Z ##[endgroup]
+build	Set up job	2026-02-19T15:37:00.2314615Z Secret source: Actions
+build	Set up job	2026-02-19T15:37:00.2315706Z Prepare workflow directory
+build	Set up job	2026-02-19T15:37:00.2630018Z Prepare all required actions
+build	Set up job	2026-02-19T15:37:00.2667767Z Getting action download info
+build	Set up job	2026-02-19T15:37:00.6203899Z ##[error]This request has been automatically failed because it uses a deprecated version of `actions/upload-artifact: v3`. Learn more: https://github.blog/changelog/2024-04-16-deprecation-notice-v3-of-the-artifact-actions/

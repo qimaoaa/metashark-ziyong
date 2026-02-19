@@ -1,4 +1,4 @@
-﻿// <copyright file="SeasonProvider.cs" company="PlaceholderCompany">
+// <copyright file="SeasonProvider.cs" company="PlaceholderCompany">
 // Copyright (c) PlaceholderCompany. All rights reserved.
 // </copyright>
 
@@ -26,8 +26,8 @@ namespace Jellyfin.Plugin.MetaShark.Providers
 
     public class SeasonProvider : BaseProvider, IRemoteMetadataProvider<Season, SeasonInfo>
     {
-        public SeasonProvider(IHttpClientFactory httpClientFactory, ILoggerFactory loggerFactory, ILibraryManager libraryManager, IHttpContextAccessor httpContextAccessor, DoubanApi doubanApi, TmdbApi tmdbApi, OmdbApi omdbApi, ImdbApi imdbApi)
-            : base(httpClientFactory, loggerFactory.CreateLogger<SeasonProvider>(), libraryManager, httpContextAccessor, doubanApi, tmdbApi, omdbApi, imdbApi)
+        public SeasonProvider(IHttpClientFactory httpClientFactory, ILoggerFactory loggerFactory, ILibraryManager libraryManager, IHttpContextAccessor httpContextAccessor, DoubanApi doubanApi, TmdbApi tmdbApi, OmdbApi omdbApi, ImdbApi imdbApi, TvdbApi tvdbApi)
+            : base(httpClientFactory, loggerFactory.CreateLogger<SeasonProvider>(), libraryManager, httpContextAccessor, doubanApi, tmdbApi, omdbApi, imdbApi, tvdbApi)
         {
         }
 
@@ -47,33 +47,28 @@ namespace Jellyfin.Plugin.MetaShark.Providers
             ArgumentNullException.ThrowIfNull(info);
             var result = new MetadataResult<Season>();
 
-            // 使用刷新元数据时，之前识别的 seasonNumber 会保留，不会被覆盖
             info.SeriesProviderIds.TryGetValue(MetadataProvider.Tmdb.ToString(), out var seriesTmdbId);
             info.SeriesProviderIds.TryGetMetaSource(MetaSharkPlugin.ProviderId, out var metaSource);
             info.SeriesProviderIds.TryGetValue(DoubanProviderId, out var sid);
-            var seasonNumber = info.IndexNumber; // S00/Season 00特典目录会为0
+            var seriesTvdbId = info.SeriesProviderIds.GetValueOrDefault("Tvdb");
+
+            var seasonNumber = info.IndexNumber;
             var seasonSid = info.GetProviderId(DoubanProviderId);
             var fileName = Path.GetFileName(info.Path);
-            this.Log($"GetSeasonMetaData of [name]: {info.Name} [fileName]: {fileName} number: {info.IndexNumber} seriesTmdbId: {seriesTmdbId} sid: {sid} metaSource: {metaSource} EnableTmdb: {Config.EnableTmdb}");
-            if (metaSource != MetaSource.Tmdb && !string.IsNullOrEmpty(sid))
+            this.Log($"GetSeasonMetaData of [name]: {info.Name} [fileName]: {fileName} number: {info.IndexNumber} seriesTmdbId: {seriesTmdbId} sid: {sid} metaSource: {metaSource} seriesTvdbId: {seriesTvdbId}");
+
+            if (metaSource != MetaSource.Tmdb && metaSource != MetaSource.Tvdb && !string.IsNullOrEmpty(sid))
             {
-                // seasonNumber 为 null 有三种情况：
-                // 1. 没有季文件夹时，即虚拟季，info.Path 为空
-                // 2. 一般不规范文件夹命名，没法被 EpisodeResolver 解析的，info.Path 不为空，如：摇曳露营△
-                // 3. 特殊不规范文件夹命名，能被 EpisodeResolver 错误解析，这时被当成了视频文件，相当于没有季文件夹，info.Path 为空，如：冰与火之歌 S02.列王的纷争.2012.1080p.Blu-ray.x265.10bit.AC3
-                //    相关代码：https://github.com/jellyfin/jellyfin/blob/dc2eca9f2ca259b46c7b53f59251794903c730a4/Emby.Server.Implementations/Library/Resolvers/TV/SeasonResolver.cs#L70
                 if (seasonNumber is null)
                 {
                     seasonNumber = this.GuessSeasonNumberByDirectoryName(info.Path);
                 }
 
-                // 搜索豆瓣季 id
                 if (string.IsNullOrEmpty(seasonSid))
                 {
                     seasonSid = await this.GuessDoubanSeasonId(sid, seriesTmdbId, seasonNumber, info, cancellationToken).ConfigureAwait(false);
                 }
 
-                // 获取季豆瓣数据
                 if (!string.IsNullOrEmpty(seasonSid))
                 {
                     var subject = await this.DoubanApi.GetMovieAsync(seasonSid, cancellationToken).ConfigureAwait(false);
@@ -93,7 +88,7 @@ namespace Jellyfin.Plugin.MetaShark.Providers
                             Overview = subject.Intro,
                             ProductionYear = subject.Year,
                             Genres = subject.Genres.ToArray(),
-                            PremiereDate = subject.ScreenTime,  // 发行日期
+                            PremiereDate = subject.ScreenTime,
                             IndexNumber = seasonNumber,
                         };
 
@@ -112,30 +107,55 @@ namespace Jellyfin.Plugin.MetaShark.Providers
                         return result;
                     }
                 }
-                else
-                {
-                    this.Log($"Season [{info.Name}] not found douban season id!");
-                }
+            }
 
-                // 豆瓣找不到季数据，尝试获取tmdb的季数据
-                if (string.IsNullOrEmpty(seasonSid) && !string.IsNullOrWhiteSpace(seriesTmdbId) && seasonNumber.HasValue && seasonNumber >= 0)
+            // TMDB 优先级高于 TVDB 兜底
+            if (!string.IsNullOrEmpty(seriesTmdbId) && seasonNumber.HasValue)
+            {
+                var tmdbResult = await this.GetMetadataByTmdb(info, seriesTmdbId, seasonNumber.Value, cancellationToken).ConfigureAwait(false);
+                if (tmdbResult.HasMetadata)
                 {
-                    var tmdbResult = await this.GetMetadataByTmdb(info, seriesTmdbId, seasonNumber.Value, cancellationToken).ConfigureAwait(false);
-                    if (tmdbResult != null)
-                    {
-                        return tmdbResult;
-                    }
+                    return tmdbResult;
                 }
+            }
 
-                // 从豆瓣获取不到季信息
+            // TVDB 兜底
+            if (!string.IsNullOrEmpty(seriesTvdbId) && seasonNumber.HasValue)
+            {
+                var tvdbResult = await this.GetMetadataByTvdb(info, seriesTvdbId, seasonNumber.Value, cancellationToken).ConfigureAwait(false);
+                if (tvdbResult.HasMetadata)
+                {
+                    return tvdbResult;
+                }
+            }
+
+            return result;
+        }
+
+        public async Task<MetadataResult<Season>> GetMetadataByTvdb(SeasonInfo info, string? seriesTvdbId, int? seasonNumber, CancellationToken cancellationToken)
+        {
+            ArgumentNullException.ThrowIfNull(info);
+            var result = new MetadataResult<Season>();
+
+            if (string.IsNullOrEmpty(seriesTvdbId) || !int.TryParse(seriesTvdbId, out var seriesId) || seasonNumber == null)
+            {
                 return result;
             }
 
-            // series使用TMDB元数据来源
-            // tmdb季级没有对应id，只通过indexNumber区分
-            if (metaSource == MetaSource.Tmdb && !string.IsNullOrEmpty(seriesTmdbId))
+            // 使用剧集的显示顺序来映射 TVDB 季度类型
+            var seasonType = MapDisplayOrderToTvdbType(info.SeriesDisplayOrder);
+            this.Log($"GetSeasonMetadata of tvdb seriesId: \"{seriesTvdbId}\" season: {seasonNumber} type: {seasonType}");
+
+            var episodes = await this.TvdbApi.GetSeriesEpisodesAsync(seriesId, seasonType, seasonNumber.Value, info.MetadataLanguage, cancellationToken).ConfigureAwait(false);
+
+            if (episodes.Any())
             {
-                return await this.GetMetadataByTmdb(info, seriesTmdbId, seasonNumber, cancellationToken).ConfigureAwait(false);
+                result.Item = new Season
+                {
+                    Name = $"第 {seasonNumber} 季",
+                    IndexNumber = seasonNumber,
+                };
+                result.HasMetadata = true;
             }
 
             return result;
@@ -149,13 +169,11 @@ namespace Jellyfin.Plugin.MetaShark.Providers
                 return null;
             }
 
-            // 没有季文件夹或季文件夹名不规范时（即虚拟季），info.Path 会为空，seasonNumber 为 null
             if (string.IsNullOrEmpty(info.Path) && !seasonNumber.HasValue)
             {
                 return null;
             }
 
-            // 从季文件夹名属性格式获取，如 [douban-12345] 或 [doubanid-12345]
             var fileName = GetOriginalFileName(info);
             var doubanId = this.RegDoubanIdAttribute.FirstMatchGroup(fileName);
             if (!string.IsNullOrWhiteSpace(doubanId))
@@ -164,7 +182,6 @@ namespace Jellyfin.Plugin.MetaShark.Providers
                 return doubanId;
             }
 
-            // 从sereis获取正确名称，info.Name当是标准格式如S01等时，会变成第x季，非标准名称默认文件名
             var series = await this.DoubanApi.GetMovieAsync(sid, cancellationToken).ConfigureAwait(false);
             if (series == null)
             {
@@ -173,7 +190,6 @@ namespace Jellyfin.Plugin.MetaShark.Providers
 
             var seriesName = this.RemoveSeasonSuffix(series.Name);
 
-            // 没有季id，但存在tmdbid，尝试从tmdb获取对应季的年份信息，用于从豆瓣搜索对应季数据
             var seasonYear = 0;
             if (!string.IsNullOrEmpty(seriesTmdbId) && (seasonNumber.HasValue && seasonNumber > 0))
             {
@@ -192,7 +208,6 @@ namespace Jellyfin.Plugin.MetaShark.Providers
                 }
             }
 
-            // 通过季名匹配douban id，作为关闭tmdb api/api超时的后备方法使用
             if (!string.IsNullOrEmpty(seriesName) && seasonNumber.HasValue && seasonNumber > 0)
             {
                 return await this.GuestDoubanSeasonBySeasonNameAsync(seriesName, seasonNumber, cancellationToken).ConfigureAwait(false);
@@ -257,7 +272,7 @@ namespace Jellyfin.Plugin.MetaShark.Providers
 
             if (!string.IsNullOrEmpty(seasonResult.ExternalIds?.TvdbId))
             {
-                result.Item.SetProviderId(MetadataProvider.Tvdb, seasonResult.ExternalIds.TvdbId);
+                result.Item.SetProviderId("Tvdb", seasonResult.ExternalIds.TvdbId);
             }
 
             return result;

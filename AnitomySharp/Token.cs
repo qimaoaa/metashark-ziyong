@@ -17,21 +17,21 @@ namespace AnitomySharp
 
     /// <summary>
     /// An anime filename is tokenized into individual <see cref="Token"/>s. This class represents an individual token.
-    /// 
+    ///
     /// 动画文件名被标记化为单一的标记(token)
     /// </summary>
     public class Token
     {
         /// <summary>
         /// The category of the token.
-        /// 
+        ///
         /// 标记(token)类型
         /// </summary>
         public enum TokenCategory
         {
             /// <summary>
             /// 未知类型，
-            /// 
+            ///
             /// 包括：无括号/分隔符的字符串；分隔符分割后的字符串
             /// </summary>
             Unknown,
@@ -55,7 +55,7 @@ namespace AnitomySharp
 
         /// <summary>
         /// TokenFlag, used for searching specific token categories. This allows granular searching of TokenCategories.
-        /// 
+        ///
         /// 标记符，用于细粒度搜索特定的标记类型(<see cref="TokenCategory"/>)。
         /// </summary>
         public enum TokenFlag
@@ -71,7 +71,7 @@ namespace AnitomySharp
             /// </summary>
             FlagBracket,
             /// <summary>
-            /// 
+            ///
             /// </summary>
             FlagNotBracket,
             /// <summary>
@@ -79,7 +79,7 @@ namespace AnitomySharp
             /// </summary>
             FlagDelimiter,
             /// <summary>
-            /// 
+            ///
             /// </summary>
             FlagNotDelimiter,
             /// <summary>
@@ -87,7 +87,7 @@ namespace AnitomySharp
             /// </summary>
             FlagIdentifier,
             /// <summary>
-            /// 
+            ///
             /// </summary>
             FlagNotIdentifier,
             /// <summary>
@@ -95,7 +95,7 @@ namespace AnitomySharp
             /// </summary>
             FlagUnknown,
             /// <summary>
-            /// 
+            ///
             /// </summary>
             FlagNotUnknown,
             /// <summary>
@@ -103,7 +103,7 @@ namespace AnitomySharp
             /// </summary>
             FlagValid,
             /// <summary>
-            /// 
+            ///
             /// </summary>
             FlagNotValid,
 
@@ -120,7 +120,7 @@ namespace AnitomySharp
 
         /// <summary>
         /// Set of token category flags
-        /// 
+        ///
         /// 标识符分类列表
         /// </summary>
         private static readonly List<TokenFlag> FlagMaskCategories = new List<TokenFlag>
@@ -134,7 +134,7 @@ namespace AnitomySharp
 
         /// <summary>
         /// Set of token enclosed flags
-        /// 
+        ///
         /// 闭合的标识符列表
         /// </summary>
         private static readonly List<TokenFlag> FlagMaskEnclosed = new List<TokenFlag>
@@ -157,7 +157,7 @@ namespace AnitomySharp
 
         /// <summary>
         /// Constructs a new token
-        /// 
+        ///
         /// 构造一个新的标记(token)
         /// </summary>
         /// <param name="category">the token category</param>
@@ -172,7 +172,7 @@ namespace AnitomySharp
 
         /// <summary>
         /// Validates a token against the <c>flags</c>. The <c>flags</c> is used as a search parameter.
-        /// 
+        ///
         /// 验证传入的标记(token)是否满足标记符(flag)
         /// </summary>
         /// <param name="token">the token</param>
@@ -239,7 +239,7 @@ namespace AnitomySharp
 
         /// <summary>
         /// Given a list of <c>tokens</c>, searches for the previous token in <c>tokens</c> that matches the list of <c>flags</c>.
-        /// 
+        ///
         /// 在给定的标记列表中搜索匹配输入的标记符前一个标记
         /// </summary>
         /// <param name="tokens">the list of tokens</param>
@@ -253,7 +253,7 @@ namespace AnitomySharp
 
         /// <summary>
         /// Given a list of tokens finds the first token that passes <see cref="CheckTokenFlags"/>.
-        /// 
+        ///
         /// 在给定的标记列表中找到第一个通过<see cref="CheckTokenFlags"/>的标记(token)
         /// </summary>
         /// <param name="tokens">the list of the tokens to search</param>
@@ -286,7 +286,7 @@ namespace AnitomySharp
             return end;
         }
         /// <summary>
-        /// 
+        ///
         /// </summary>
         /// <param name="pos"></param>
         /// <param name="list"></param>
@@ -296,7 +296,7 @@ namespace AnitomySharp
             return -1 < pos && pos < list.Count;
         }
         /// <summary>
-        /// 
+        ///
         /// </summary>
         /// <param name="o"></param>
         /// <returns></returns>
@@ -308,7 +308,7 @@ namespace AnitomySharp
             return Enclosed == token.Enclosed && Category == token.Category && Equals(Content, token.Content);
         }
         /// <summary>
-        /// 
+        ///
         /// </summary>
         /// <returns></returns>
         public override int GetHashCode()
@@ -320,7 +320,7 @@ namespace AnitomySharp
             return hashCode;
         }
         /// <summary>
-        /// 
+        ///
         /// </summary>
         /// <returns></returns>
         public override string ToString()

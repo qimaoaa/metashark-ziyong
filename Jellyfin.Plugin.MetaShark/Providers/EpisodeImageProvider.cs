@@ -1,4 +1,4 @@
-﻿// <copyright file="EpisodeImageProvider.cs" company="PlaceholderCompany">
+// <copyright file="EpisodeImageProvider.cs" company="PlaceholderCompany">
 // Copyright (c) PlaceholderCompany. All rights reserved.
 // </copyright>
 
@@ -12,6 +12,7 @@ namespace Jellyfin.Plugin.MetaShark.Providers
     using System.Threading;
     using System.Threading.Tasks;
     using Jellyfin.Plugin.MetaShark.Api;
+    using Jellyfin.Plugin.MetaShark.Core;
     using MediaBrowser.Controller.Entities;
     using MediaBrowser.Controller.Entities.TV;
     using MediaBrowser.Controller.Library;
@@ -23,8 +24,8 @@ namespace Jellyfin.Plugin.MetaShark.Providers
 
     public class EpisodeImageProvider : BaseProvider, IRemoteImageProvider
     {
-        public EpisodeImageProvider(IHttpClientFactory httpClientFactory, ILoggerFactory loggerFactory, ILibraryManager libraryManager, IHttpContextAccessor httpContextAccessor, DoubanApi doubanApi, TmdbApi tmdbApi, OmdbApi omdbApi, ImdbApi imdbApi)
-            : base(httpClientFactory, loggerFactory.CreateLogger<EpisodeImageProvider>(), libraryManager, httpContextAccessor, doubanApi, tmdbApi, omdbApi, imdbApi)
+        public EpisodeImageProvider(IHttpClientFactory httpClientFactory, ILoggerFactory loggerFactory, ILibraryManager libraryManager, IHttpContextAccessor httpContextAccessor, DoubanApi doubanApi, TmdbApi tmdbApi, OmdbApi omdbApi, ImdbApi imdbApi, TvdbApi tvdbApi)
+            : base(httpClientFactory, loggerFactory.CreateLogger<EpisodeImageProvider>(), libraryManager, httpContextAccessor, doubanApi, tmdbApi, omdbApi, imdbApi, tvdbApi)
         {
         }
 
@@ -35,62 +36,93 @@ namespace Jellyfin.Plugin.MetaShark.Providers
         public bool Supports(BaseItem item) => item is Episode;
 
         /// <inheritdoc />
-        public IEnumerable<ImageType> GetSupportedImages(BaseItem item)
+        public IEnumerable<ImageType> GetSupportedImages(BaseItem item) => new List<ImageType>
         {
-            yield return ImageType.Primary;
-        }
+            ImageType.Primary,
+        };
 
         /// <inheritdoc />
         public async Task<IEnumerable<RemoteImageInfo>> GetImages(BaseItem item, CancellationToken cancellationToken)
         {
             ArgumentNullException.ThrowIfNull(item);
-            this.Log($"GetEpisodeImages of [name]: {item.Name} number: {item.IndexNumber} ParentIndexNumber: {item.ParentIndexNumber}");
-
-            var episode = (MediaBrowser.Controller.Entities.TV.Episode)item;
+            var episode = (Episode)item;
             var series = episode.Series;
-
-            var seriesTmdbId = Convert.ToInt32(series.GetProviderId(MetadataProvider.Tmdb), CultureInfo.InvariantCulture);
-
-            if (seriesTmdbId <= 0)
+            if (series == null)
             {
-                this.Log($"[GetEpisodeImages] The seriesTmdbId is empty!");
                 return Enumerable.Empty<RemoteImageInfo>();
             }
 
+            var seriesTmdbId = series.GetProviderId(MetadataProvider.Tmdb);
+            var seriesTvdbId = series.GetProviderId("Tvdb");
             var seasonNumber = episode.ParentIndexNumber;
             var episodeNumber = episode.IndexNumber;
-
-            if (seasonNumber is null || episodeNumber is null or 0)
-            {
-                this.Log($"[GetEpisodeImages] The seasonNumber or episodeNumber is empty! seasonNumber: {seasonNumber} episodeNumber: {episodeNumber}");
-                return Enumerable.Empty<RemoteImageInfo>();
-            }
-
             var language = item.GetPreferredMetadataLanguage();
-            var displayOrder = series.DisplayOrder ?? string.Empty;
 
-            var episodeResult = await this.GetEpisodeAsync(seriesTmdbId, seasonNumber, episodeNumber, displayOrder, language, language, cancellationToken)
-                .ConfigureAwait(false);
-            if (episodeResult == null)
+            var res = new List<RemoteImageInfo>();
+
+            this.Log($"GetEpisodeImages of [name]: {item.Name} number: {episodeNumber} ParentIndexNumber: {seasonNumber}");
+
+            if (!seasonNumber.HasValue || !episodeNumber.HasValue)
             {
-                this.Log("GetEpisodeImages] 找不到tmdb剧集数据. seriesTmdbId: {0} seasonNumber: {1} episodeNumber: {2} displayOrder: {3}", seriesTmdbId, seasonNumber, episodeNumber, displayOrder);
-                return Enumerable.Empty<RemoteImageInfo>();
+                return res;
             }
 
-            var result = new List<RemoteImageInfo>();
-            if (!string.IsNullOrEmpty(episodeResult.StillPath))
+            // 1. 从 TMDB 获取单集剧照
+            if (Config.EnableTmdb && !string.IsNullOrEmpty(seriesTmdbId))
             {
-                result.Add(new RemoteImageInfo
+                try
                 {
-                    Url = this.TmdbApi.GetStillUrl(episodeResult.StillPath)?.ToString(),
-                    CommunityRating = episodeResult.VoteAverage,
-                    VoteCount = episodeResult.VoteCount,
-                    ProviderName = this.Name,
-                    Type = ImageType.Primary,
-                });
+                    var displayOrder = series.DisplayOrder ?? string.Empty;
+                    var episodeResult = await this.GetEpisodeAsync(seriesTmdbId.ToInt(), seasonNumber, episodeNumber, displayOrder, language, language, cancellationToken).ConfigureAwait(false);
+                    if (episodeResult != null && !string.IsNullOrEmpty(episodeResult.StillPath))
+                    {
+                        res.Add(new RemoteImageInfo
+                        {
+                            Url = this.TmdbApi.GetStillUrl(episodeResult.StillPath)?.ToString(),
+                            CommunityRating = episodeResult.VoteAverage,
+                            VoteCount = episodeResult.VoteCount,
+                            ProviderName = this.Name + " (TMDB)",
+                            Type = ImageType.Primary,
+                        });
+                    }
+                }
+                catch (Exception ex)
+                {
+                    this.Log("Error fetching TMDB episode images: {0}", ex.Message);
+                }
             }
 
-            return result;
+            // 2. 从 TVDB 获取单集剧照
+            if (Config.EnableTvdb && !string.IsNullOrEmpty(seriesTvdbId))
+            {
+                try
+                {
+                    if (int.TryParse(seriesTvdbId, out var id))
+                    {
+                        // 使用剧集的显示顺序来匹配 TVDB 季度类型
+                        var seasonType = MapDisplayOrderToTvdbType(series.DisplayOrder);
+                        this.Log("TVDB Images using seasonType: {0} for series: {1}", seasonType, seriesTvdbId);
+
+                        var tvdbEpisodes = await this.TvdbApi.GetSeriesEpisodesAsync(id, seasonType, seasonNumber.Value, language, cancellationToken).ConfigureAwait(false);
+                        var match = tvdbEpisodes.FirstOrDefault(e => e.SeasonNumber == seasonNumber && e.Number == episodeNumber);
+                        if (match != null && !string.IsNullOrEmpty(match.Image))
+                        {
+                            res.Add(new RemoteImageInfo
+                            {
+                                ProviderName = this.Name + " (TVDB)",
+                                Url = match.Image,
+                                Type = ImageType.Primary,
+                            });
+                        }
+                    }
+                }
+                catch (Exception ex)
+                {
+                    this.Log("Error fetching TVDB episode images: {0}", ex.Message);
+                }
+            }
+
+            return res;
         }
     }
 }

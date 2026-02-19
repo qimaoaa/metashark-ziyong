@@ -1,4 +1,4 @@
-﻿// <copyright file="MovieImageProvider.cs" company="PlaceholderCompany">
+// <copyright file="MovieImageProvider.cs" company="PlaceholderCompany">
 // Copyright (c) PlaceholderCompany. All rights reserved.
 // </copyright>
 
@@ -6,6 +6,7 @@ namespace Jellyfin.Plugin.MetaShark.Providers
 {
     using System;
     using System.Collections.Generic;
+    using System.Globalization;
     using System.Linq;
     using System.Net.Http;
     using System.Threading;
@@ -25,8 +26,8 @@ namespace Jellyfin.Plugin.MetaShark.Providers
 
     public class MovieImageProvider : BaseProvider, IRemoteImageProvider
     {
-        public MovieImageProvider(IHttpClientFactory httpClientFactory, ILoggerFactory loggerFactory, ILibraryManager libraryManager, IHttpContextAccessor httpContextAccessor, DoubanApi doubanApi, TmdbApi tmdbApi, OmdbApi omdbApi, ImdbApi imdbApi)
-            : base(httpClientFactory, loggerFactory.CreateLogger<MovieImageProvider>(), libraryManager, httpContextAccessor, doubanApi, tmdbApi, omdbApi, imdbApi)
+        public MovieImageProvider(IHttpClientFactory httpClientFactory, ILoggerFactory loggerFactory, ILibraryManager libraryManager, IHttpContextAccessor httpContextAccessor, DoubanApi doubanApi, TmdbApi tmdbApi, OmdbApi omdbApi, ImdbApi imdbApi, TvdbApi tvdbApi)
+            : base(httpClientFactory, loggerFactory.CreateLogger<MovieImageProvider>(), libraryManager, httpContextAccessor, doubanApi, tmdbApi, omdbApi, imdbApi, tvdbApi)
         {
         }
 
@@ -49,127 +50,176 @@ namespace Jellyfin.Plugin.MetaShark.Providers
         {
             ArgumentNullException.ThrowIfNull(item);
             var sid = item.GetProviderId(DoubanProviderId);
+            var tmdbId = item.GetProviderId(MetadataProvider.Tmdb);
+            var tvdbId = item.GetProviderId("Tvdb");
             var metaSource = item.GetMetaSource(MetaSharkPlugin.ProviderId);
-            this.Log($"GetImages for item: {item.Name} lang: {item.GetPreferredMetadataLanguage()} [metaSource]: {metaSource}");
-            if (metaSource != MetaSource.Tmdb && !string.IsNullOrEmpty(sid))
+            var language = item.GetPreferredMetadataLanguage();
+
+            var res = new List<RemoteImageInfo>();
+
+            this.Log($"GetImages for movie: {item.Name} lang: {language} [metaSource]: {metaSource} tvdbId: {tvdbId}");
+
+            // 1. 获取豆瓣图片
+            if (!string.IsNullOrEmpty(sid))
             {
                 var primary = await this.DoubanApi.GetMovieAsync(sid, cancellationToken).ConfigureAwait(false);
-                if (primary == null || string.IsNullOrEmpty(primary.Img))
+                if (primary != null && !string.IsNullOrEmpty(primary.Img))
                 {
-                    return Enumerable.Empty<RemoteImageInfo>();
-                }
-
-                var backdropImgs = await this.GetBackdrop(item, primary.PrimaryLanguageCode, cancellationToken).ConfigureAwait(false);
-                var logoImgs = await this.GetLogos(item, primary.PrimaryLanguageCode, cancellationToken).ConfigureAwait(false);
-
-                var res = new List<RemoteImageInfo>
-                {
-                    new RemoteImageInfo
+                    res.Add(new RemoteImageInfo
                     {
-                        ProviderName = this.Name,
+                        ProviderName = this.Name + " (Douban)",
                         Url = this.GetDoubanPoster(primary),
                         Type = ImageType.Primary,
-                        Language = item.GetPreferredMetadataLanguage(),
-                    },
-                };
-                res.AddRange(backdropImgs);
-                res.AddRange(logoImgs);
-                return res;
-            }
-
-            var tmdbId = item.GetProviderId(MetadataProvider.Tmdb);
-            if (metaSource == MetaSource.Tmdb && !string.IsNullOrEmpty(tmdbId))
-            {
-                var language = item.GetPreferredMetadataLanguage();
-
-                // 设定language会导致图片被过滤，这里设为null，保持取全部语言图片
-                var movie = await this.TmdbApi
-                .GetMovieAsync(tmdbId.ToInt(), language, language, cancellationToken)
-                .ConfigureAwait(false);
-
-                // 设定language会导致图片被过滤，这里设为null，保持取全部语言图片
-                var images = await this.TmdbApi
-                .GetMovieImagesAsync(tmdbId.ToInt(), string.Empty, string.Empty, cancellationToken)
-                .ConfigureAwait(false);
-
-                if (movie == null || images == null)
-                {
-                    return Enumerable.Empty<RemoteImageInfo>();
+                        Language = language,
+                    });
                 }
 
-                var remoteImages = new List<RemoteImageInfo>();
-
-                remoteImages.AddRange(images.Posters.Where(x => x.FilePath == movie.PosterPath).Select(x => new RemoteImageInfo
-                {
-                    ProviderName = this.Name,
-                    Url = this.TmdbApi.GetPosterUrl(x.FilePath)?.ToString(),
-                    Type = ImageType.Primary,
-                    CommunityRating = x.VoteAverage,
-                    VoteCount = x.VoteCount,
-                    Width = x.Width,
-                    Height = x.Height,
-                    Language = language,
-                    RatingType = RatingType.Score,
-                }));
-
-                remoteImages.AddRange(images.Backdrops.Where(x => x.FilePath == movie.BackdropPath).Select(x => new RemoteImageInfo
-                {
-                    ProviderName = this.Name,
-                    Url = this.TmdbApi.GetBackdropUrl(x.FilePath)?.ToString(),
-                    Type = ImageType.Backdrop,
-                    CommunityRating = x.VoteAverage,
-                    VoteCount = x.VoteCount,
-                    Width = x.Width,
-                    Height = x.Height,
-                    Language = language,
-                    RatingType = RatingType.Score,
-                }));
-
-                remoteImages.AddRange(movie.Images.Logos.Select(x => new RemoteImageInfo
-                {
-                    ProviderName = this.Name,
-                    Url = this.TmdbApi.GetLogoUrl(x.FilePath)?.ToString(),
-                    Type = ImageType.Logo,
-                    CommunityRating = x.VoteAverage,
-                    VoteCount = x.VoteCount,
-                    Width = x.Width,
-                    Height = x.Height,
-                    Language = AdjustImageLanguage(x.Iso_639_1, language),
-                    RatingType = RatingType.Score,
-                }));
-
-                // TODO：jellyfin 内部判断取哪个图片时，还会默认使用 OrderByLanguageDescending 排序一次，这里排序没用
-                return remoteImages.OrderByLanguageDescending(language);
+                // 豆瓣背景图
+                var doubanBackdrops = await this.GetBackdrop(item, string.Empty, cancellationToken).ConfigureAwait(false);
+                res.AddRange(doubanBackdrops);
             }
 
-            this.Log($"Got images failed because the images of \"{item.Name}\" is empty!");
-            return new List<RemoteImageInfo>();
+            // 2. 获取 TMDB 图片
+            if (Config.EnableTmdb && !string.IsNullOrEmpty(tmdbId))
+            {
+                var tmdbImages = await this.GetTmdbImages(tmdbId, language, cancellationToken).ConfigureAwait(false);
+                res.AddRange(tmdbImages);
+            }
+
+            // 3. 获取 TVDB 图片 (电影也支持)
+            if (Config.EnableTvdb && !string.IsNullOrEmpty(tvdbId))
+            {
+                var tvdbImages = await this.GetTvdbImages(tvdbId, language, cancellationToken).ConfigureAwait(false);
+                res.AddRange(tvdbImages);
+            }
+
+            return res.OrderByLanguageDescending(language);
         }
 
-        /// <summary>
-        /// Query for a background photo.
-        /// </summary>
-        /// <param name="cancellationToken">Instance of the <see cref="CancellationToken"/> interface.</param>
+        private async Task<List<RemoteImageInfo>> GetTmdbImages(string tmdbId, string language, CancellationToken cancellationToken)
+        {
+            var res = new List<RemoteImageInfo>();
+            try
+            {
+                var movie = await this.TmdbApi.GetMovieAsync(tmdbId.ToInt(), language, language, cancellationToken).ConfigureAwait(false);
+                var images = await this.TmdbApi.GetMovieImagesAsync(tmdbId.ToInt(), string.Empty, string.Empty, cancellationToken).ConfigureAwait(false);
+
+                if (movie != null && images != null)
+                {
+                    res.AddRange(images.Posters.Select(x => new RemoteImageInfo
+                    {
+                        ProviderName = this.Name + " (TMDB)",
+                        Url = this.TmdbApi.GetPosterUrl(x.FilePath)?.ToString(),
+                        Type = ImageType.Primary,
+                        Language = x.Iso_639_1,
+                    }));
+
+                    res.AddRange(images.Backdrops.Select(x => new RemoteImageInfo
+                    {
+                        ProviderName = this.Name + " (TMDB)",
+                        Url = this.TmdbApi.GetBackdropUrl(x.FilePath)?.ToString(),
+                        Type = ImageType.Backdrop,
+                        Language = x.Iso_639_1,
+                    }));
+
+                    res.AddRange(images.Logos.Select(x => new RemoteImageInfo
+                    {
+                        ProviderName = this.Name + " (TMDB)",
+                        Url = this.TmdbApi.GetLogoUrl(x.FilePath)?.ToString(),
+                        Type = ImageType.Logo,
+                        Language = x.Iso_639_1,
+                    }));
+                }
+            }
+            catch (HttpRequestException ex)
+            {
+                this.Log("Error fetching TMDB movie images: {0}", ex.Message);
+            }
+
+            return res;
+        }
+
+        private async Task<List<RemoteImageInfo>> GetTvdbImages(string tvdbId, string language, CancellationToken cancellationToken)
+        {
+            var res = new List<RemoteImageInfo>();
+            try
+            {
+                if (int.TryParse(tvdbId, out var id))
+                {
+                    // TVDB movies use the same endpoint but type is different internally, v4 usually handles it
+                    var tvdbMovie = await this.TvdbApi.GetSeriesAsync(id, language, cancellationToken).ConfigureAwait(false);
+                    if (tvdbMovie != null)
+                    {
+                        if (!string.IsNullOrEmpty(tvdbMovie.Image))
+                        {
+                            res.Add(new RemoteImageInfo
+                            {
+                                ProviderName = this.Name + " (TVDB)",
+                                Url = tvdbMovie.Image,
+                                Type = ImageType.Primary,
+                            });
+                        }
+
+                        if (tvdbMovie.Artworks != null)
+                        {
+                            foreach (var art in tvdbMovie.Artworks)
+                            {
+                                if (string.IsNullOrEmpty(art.Image))
+                                {
+                                    continue;
+                                }
+
+                                var imgType = ImageType.Primary;
+                                if (art.Type == 2)
+                                {
+                                    imgType = ImageType.Primary;
+                                }
+                                else if (art.Type == 12 || art.Type == 3)
+                                {
+                                    imgType = ImageType.Backdrop;
+                                }
+                                else
+                                {
+                                    continue;
+                                }
+
+                                res.Add(new RemoteImageInfo
+                                {
+                                    ProviderName = this.Name + " (TVDB)",
+                                    Url = art.Image,
+                                    Type = imgType,
+                                    Language = art.Language,
+                                });
+                            }
+                        }
+                    }
+                }
+            }
+            catch (HttpRequestException ex)
+            {
+                this.Log("Error fetching TVDB movie images: {0}", ex.Message);
+            }
+
+            return res;
+        }
+
         private async Task<IEnumerable<RemoteImageInfo>> GetBackdrop(BaseItem item, string alternativeImageLanguage, CancellationToken cancellationToken)
         {
             var sid = item.GetProviderId(DoubanProviderId);
-            var tmdbId = item.GetProviderId(MetadataProvider.Tmdb);
             var list = new List<RemoteImageInfo>();
 
-            // 从豆瓣获取背景图
             if (!string.IsNullOrEmpty(sid))
             {
                 var photo = await this.DoubanApi.GetWallpaperBySidAsync(sid, cancellationToken).ConfigureAwait(false);
                 if (photo != null && photo.Count > 0)
                 {
-                    this.Log("GetBackdrop from douban sid: {0}", sid);
                     list = photo.Where(x => x.Width >= 1280 && x.Width <= 4096 && x.Width > x.Height * 1.3).Select(x =>
                     {
                         if (Config.EnableDoubanBackdropRaw)
                         {
                             return new RemoteImageInfo
                             {
-                                ProviderName = this.Name,
+                                ProviderName = this.Name + " (Douban)",
                                 Url = this.GetProxyImageUrl(new Uri(x.Raw, UriKind.Absolute)).ToString(),
                                 Height = x.Height,
                                 Width = x.Width,
@@ -181,7 +231,7 @@ namespace Jellyfin.Plugin.MetaShark.Providers
                         {
                             return new RemoteImageInfo
                             {
-                                ProviderName = this.Name,
+                                ProviderName = this.Name + " (Douban)",
                                 Url = this.GetProxyImageUrl(new Uri(x.Large, UriKind.Absolute)).ToString(),
                                 Type = ImageType.Backdrop,
                                 Language = "zh",
@@ -191,61 +241,29 @@ namespace Jellyfin.Plugin.MetaShark.Providers
                 }
             }
 
-            // 添加 TheMovieDb 背景图为备选
-            if (Config.EnableTmdbBackdrop && !string.IsNullOrEmpty(tmdbId))
-            {
-                var language = item.GetPreferredMetadataLanguage();
-                var movie = await this.TmdbApi
-                .GetMovieAsync(tmdbId.ToInt(), language, language, cancellationToken)
-                .ConfigureAwait(false);
-
-                if (movie != null && !string.IsNullOrEmpty(movie.BackdropPath))
-                {
-                    this.Log("GetBackdrop from tmdb id: {0} lang: {1}", tmdbId, language);
-                    list.Add(new RemoteImageInfo
-                    {
-                        ProviderName = this.Name,
-                        Url = this.TmdbApi.GetBackdropUrl(movie.BackdropPath)?.ToString(),
-                        Type = ImageType.Backdrop,
-                        Language = language,
-                    });
-                }
-            }
-
             return list;
         }
 
         private async Task<IEnumerable<RemoteImageInfo>> GetLogos(BaseItem item, string alternativeImageLanguage, CancellationToken cancellationToken)
         {
             var tmdbId = item.GetProviderId(MetadataProvider.Tmdb);
-            var list = new List<RemoteImageInfo>();
             var language = item.GetPreferredMetadataLanguage();
+            var list = new List<RemoteImageInfo>();
             if (Config.EnableTmdbLogo && !string.IsNullOrEmpty(tmdbId))
             {
-                this.Log("GetLogos from tmdb id: {0}", tmdbId);
-                var images = await this.TmdbApi
-                .GetMovieImagesAsync(tmdbId.ToInt(), string.Empty, string.Empty, cancellationToken)
-                .ConfigureAwait(false);
-
+                var images = await this.TmdbApi.GetMovieImagesAsync(tmdbId.ToInt(), string.Empty, string.Empty, cancellationToken).ConfigureAwait(false);
                 if (images != null)
                 {
                     list.AddRange(images.Logos.Select(x => new RemoteImageInfo
                     {
-                        ProviderName = this.Name,
+                        ProviderName = this.Name + " (TMDB)",
                         Url = this.TmdbApi.GetLogoUrl(x.FilePath)?.ToString(),
                         Type = ImageType.Logo,
-                        CommunityRating = x.VoteAverage,
-                        VoteCount = x.VoteCount,
-                        Width = x.Width,
-                        Height = x.Height,
                         Language = AdjustImageLanguage(x.Iso_639_1, language),
-                        RatingType = RatingType.Score,
                     }));
                 }
             }
 
-            // TODO：jellyfin 内部判断取哪个图片时，还会默认使用 OrderByLanguageDescending 排序一次，这里排序没用
-            //       默认图片优先级是：默认语言 > 无语言 > en > 其他语言
             return AdjustImageLanguagePriority(list, language, alternativeImageLanguage);
         }
     }

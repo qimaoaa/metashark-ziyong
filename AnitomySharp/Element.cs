@@ -11,19 +11,19 @@
 namespace AnitomySharp
 {
     /// <summary>
-    /// An <see cref="Element"/> represents an identified Anime <see cref="Token"/>. 
+    /// An <see cref="Element"/> represents an identified Anime <see cref="Token"/>.
     /// A single filename may contain multiple of the same
     /// token(e.g <see cref="ElementCategory.ElementEpisodeNumber"/>).
-    /// 
+    ///
     /// 一个元素即是一个已标识的标记(token)
-    /// 
+    ///
     /// 单个文件名可能包含多个相同的标记，比如：`ElementEpisodeNumber`元素类别的标记
     /// </summary>
     public class Element
     {
         /// <summary>
         /// Element Categories
-        /// 
+        ///
         /// 元素类别
         /// </summary>
         public enum ElementCategory
@@ -135,17 +135,17 @@ namespace AnitomySharp
         }
 
         /// <summary>
-        /// 
+        ///
         /// </summary>
         public ElementCategory Category { get; set; }
         /// <summary>
-        /// 
+        ///
         /// </summary>
         public string Value { get; }
 
         /// <summary>
         ///  Constructs a new Element
-        ///  
+        ///
         /// 构造一个元素
         /// </summary>
         /// <param name="category">the category of the element</param>
@@ -157,7 +157,7 @@ namespace AnitomySharp
         }
 
         /// <summary>
-        /// 
+        ///
         /// </summary>
         /// <returns></returns>
         public override int GetHashCode()
@@ -166,7 +166,7 @@ namespace AnitomySharp
         }
 
         /// <summary>
-        /// 
+        ///
         /// </summary>
         /// <param name="obj"></param>
         /// <returns></returns>
@@ -186,7 +186,7 @@ namespace AnitomySharp
             return Category.Equals(other.Category);
         }
         /// <summary>
-        /// 
+        ///
         /// </summary>
         /// <returns></returns>
         public override string ToString()

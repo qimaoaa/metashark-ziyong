@@ -17,23 +17,23 @@ namespace AnitomySharp
 {
 
     /// <summary>
-    /// A library capable of parsing Anime filenames. 
-    /// 
+    /// A library capable of parsing Anime filenames.
+    ///
     /// 用于解析动漫文件名的库。
-    /// 
+    ///
     /// This code is a  C++ to C# port of <see href="https://github.com/erengy/anitomy">Anitomy</see>,
     /// using the already existing Java port <see href="https://github.com/Vorror/anitomyJ">AnitomyJ</see> as a reference.
     /// </summary>
     public class AnitomySharp
     {
         /// <summary>
-        /// 
+        ///
         /// </summary>
         private AnitomySharp() { }
 
         /// <summary>
-        /// Parses an anime <paramref name="filename"/> into its consituent elements. 
-        /// 
+        /// Parses an anime <paramref name="filename"/> into its consituent elements.
+        ///
         /// 将动画文件名拆分为其组成元素。
         /// </summary>
         /// <param name="filename">the anime file name 动画文件名</param>
@@ -44,8 +44,8 @@ namespace AnitomySharp
         }
 
         /// <summary>
-        /// Parses an anime <paramref name="filename"/> into its constituent elements. 
-        /// 
+        /// Parses an anime <paramref name="filename"/> into its constituent elements.
+        ///
         /// 将动画文件名拆分为其组成元素。
         /// </summary>
         /// <param name="filename">the anime file name 动画文件名</param>
@@ -53,7 +53,7 @@ namespace AnitomySharp
         /// <returns>the list of parsed elements 分解后的元素列表</returns>
         /// <remarks>**逻辑：**
         /// 1. 提取文件扩展名；
-        /// 2. 
+        /// 2.
         /// 3. #TODO
         /// </remarks>
         public static IEnumerable<Element> Parse(string filename, Options options)
@@ -99,8 +99,8 @@ namespace AnitomySharp
 
 
         /// <summary>
-        /// Removes the extension from the <paramref name="filename"/> 
-        /// 
+        /// Removes the extension from the <paramref name="filename"/>
+        ///
         /// 确认扩展名有效，即在指定的<see cref="Element.ElementCategory.ElementFileExtension">文件扩展名元素类别</see>中，然后去除文件扩展名
         /// </summary>
         /// <param name="filename">the ref that will be updated with the new filename</param>

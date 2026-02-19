@@ -17,6 +17,7 @@ namespace Jellyfin.Plugin.MetaShark.Api
     using System.Threading;
     using System.Threading.Tasks;
     using Jellyfin.Plugin.MetaShark.Configuration;
+    using Jellyfin.Plugin.MetaShark.Model;
     using Microsoft.Extensions.Caching.Memory;
     using Microsoft.Extensions.Logging;
 
@@ -100,6 +101,114 @@ namespace Jellyfin.Plugin.MetaShark.Api
             LogTvdbConfigLoaded(this.logger, this.apiHost, !string.IsNullOrWhiteSpace(this.apiKey), !string.IsNullOrWhiteSpace(this.pin), null);
         }
 
+        public async Task<IReadOnlyList<TvdbSearchResult>> SearchSeriesAsync(string name, string? language, CancellationToken cancellationToken)
+        {
+            if (!IsEnabled())
+            {
+                return Array.Empty<TvdbSearchResult>();
+            }
+
+            var lang = NormalizeLanguage(language);
+            var url = $"search?query={WebUtility.UrlEncode(name)}&type=series";
+            if (!string.IsNullOrEmpty(lang))
+            {
+                url += $"&language={lang}";
+            }
+
+            try
+            {
+                using var response = await this.SendWithTokenAsync(() => new HttpRequestMessage(HttpMethod.Get, url), cancellationToken)
+                    .ConfigureAwait(false);
+                if (response == null || !response.IsSuccessStatusCode)
+                {
+                    return Array.Empty<TvdbSearchResult>();
+                }
+
+                var json = await response.Content.ReadAsStringAsync(cancellationToken).ConfigureAwait(false);
+                var result = JsonSerializer.Deserialize<TvdbSearchResponse>(json, JsonOptions);
+                var list = result?.Data ?? new List<TvdbSearchResult>();
+                foreach (var item in list)
+                {
+                    item.ImageUrl = FixImageUrl(item.ImageUrl?.ToString());
+                }
+
+                return list;
+            }
+            catch (JsonException ex)
+            {
+                this.logTvdbError(this.logger, nameof(this.SearchSeriesAsync), ex);
+                return Array.Empty<TvdbSearchResult>();
+            }
+            catch (HttpRequestException ex)
+            {
+                this.logTvdbError(this.logger, nameof(this.SearchSeriesAsync), ex);
+                return Array.Empty<TvdbSearchResult>();
+            }
+            catch (TaskCanceledException ex)
+            {
+                this.logTvdbError(this.logger, nameof(this.SearchSeriesAsync), ex);
+                return Array.Empty<TvdbSearchResult>();
+            }
+        }
+
+        public async Task<TvdbSeries?> GetSeriesAsync(int id, string? language, CancellationToken cancellationToken)
+        {
+            if (!IsEnabled())
+            {
+                return null;
+            }
+
+            // 使用 extended 接口获取更全的数据（演员、公司、类别）
+            var url = $"series/{id}/extended";
+            var lang = NormalizeLanguage(language);
+            if (!string.IsNullOrEmpty(lang))
+            {
+                url += $"?short=false&meta=translations";
+            }
+
+            try
+            {
+                using var response = await this.SendWithTokenAsync(() => new HttpRequestMessage(HttpMethod.Get, url), cancellationToken)
+                    .ConfigureAwait(false);
+                if (response == null || !response.IsSuccessStatusCode)
+                {
+                    return null;
+                }
+
+                var json = await response.Content.ReadAsStringAsync(cancellationToken).ConfigureAwait(false);
+                var result = JsonSerializer.Deserialize<TvdbSeriesResponse>(json, JsonOptions);
+                var series = result?.Data;
+                if (series != null)
+                {
+                    series.Image = FixImageUrl(series.Image)?.ToString();
+                    if (series.Artworks != null)
+                    {
+                        foreach (var art in series.Artworks)
+                        {
+                            art.Image = FixImageUrl(art.Image)?.ToString();
+                        }
+                    }
+                }
+
+                return series;
+            }
+            catch (JsonException ex)
+            {
+                this.logTvdbError(this.logger, nameof(this.GetSeriesAsync), ex);
+                return null;
+            }
+            catch (HttpRequestException ex)
+            {
+                this.logTvdbError(this.logger, nameof(this.GetSeriesAsync), ex);
+                return null;
+            }
+            catch (TaskCanceledException ex)
+            {
+                this.logTvdbError(this.logger, nameof(this.GetSeriesAsync), ex);
+                return null;
+            }
+        }
+
         public async Task<IReadOnlyList<TvdbEpisode>> GetSeriesEpisodesAsync(
             int seriesId,
             string seasonType,
@@ -179,6 +288,9 @@ namespace Jellyfin.Plugin.MetaShark.Api
                         AirsBeforeEpisode = episode.AirsBeforeEpisode,
                         AirsAfterSeason = episode.AirsAfterSeason,
                         Aired = ParseAiredDate(episode.Aired),
+                        Name = episode.Name,
+                        Overview = episode.Overview,
+                        Image = FixImageUrl(episode.Image)?.ToString(),
                     });
                 }
 
@@ -288,8 +400,23 @@ namespace Jellyfin.Plugin.MetaShark.Api
         private static bool IsEnabled()
         {
             var config = MetaSharkPlugin.Instance?.Configuration;
-            return (config?.EnableTvdbSpecialsWithinSeasons ?? false)
-                && !string.IsNullOrWhiteSpace(config?.TvdbApiKey);
+            return !string.IsNullOrWhiteSpace(config?.TvdbApiKey);
+        }
+
+        private static Uri? FixImageUrl(string? url)
+        {
+            if (string.IsNullOrEmpty(url))
+            {
+                return null;
+            }
+
+            if (url.StartsWith("http", StringComparison.OrdinalIgnoreCase))
+            {
+                return new Uri(url, UriKind.Absolute);
+            }
+
+            // TVDB v4 often returns paths without domain
+            return new Uri("https://artworks.thetvdb.com" + (url.StartsWith('/') ? url : "/" + url), UriKind.Absolute);
         }
 
         private async Task<string?> EnsureTokenAsync(CancellationToken cancellationToken)
@@ -399,6 +526,20 @@ namespace Jellyfin.Plugin.MetaShark.Api
         }
 
         [SuppressMessage("Performance", "CA1812", Justification = "Deserialized by System.Text.Json")]
+        private sealed class TvdbSearchResponse
+        {
+            [JsonPropertyName("data")]
+            public List<TvdbSearchResult>? Data { get; set; }
+        }
+
+        [SuppressMessage("Performance", "CA1812", Justification = "Deserialized by System.Text.Json")]
+        private sealed class TvdbSeriesResponse
+        {
+            [JsonPropertyName("data")]
+            public TvdbSeries? Data { get; set; }
+        }
+
+        [SuppressMessage("Performance", "CA1812", Justification = "Deserialized by System.Text.Json")]
         private sealed class TvdbLoginResponse
         {
             [JsonPropertyName("data")]
@@ -456,6 +597,15 @@ namespace Jellyfin.Plugin.MetaShark.Api
 
             [JsonPropertyName("aired")]
             public string? Aired { get; set; }
+
+            [JsonPropertyName("name")]
+            public string? Name { get; set; }
+
+            [JsonPropertyName("overview")]
+            public string? Overview { get; set; }
+
+            [JsonPropertyName("image")]
+            public string? Image { get; set; }
         }
     }
 }

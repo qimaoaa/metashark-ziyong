@@ -19,5 +19,11 @@ namespace Jellyfin.Plugin.MetaShark.Api
         public int? AirsAfterSeason { get; set; }
 
         public DateTime? Aired { get; set; }
+
+        public string? Name { get; set; }
+
+        public string? Overview { get; set; }
+
+        public string? Image { get; set; }
     }
 }

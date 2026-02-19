@@ -47,9 +47,14 @@ public class PluginConfiguration : BasePluginConfiguration
     public string DoubanImageProxyBaseUrl { get; set; } = string.Empty;
 
     /// <summary>
-    /// Gets or sets a value indicating whether 启用获取tmdb元数据.
+    /// Gets or sets a value indicating whether 启用从TheMovieDb获取剧集元数据.
     /// </summary>
     public bool EnableTmdb { get; set; } = true;
+
+    /// <summary>
+    /// Gets or sets a value indicating whether 启用从TheTVDB获取剧集元数据.
+    /// </summary>
+    public bool EnableTvdb { get; set; } = true;
 
     /// <summary>
     /// Gets or sets a value indicating whether 启用显示tmdb搜索结果.
@@ -57,14 +62,29 @@ public class PluginConfiguration : BasePluginConfiguration
     public bool EnableTmdbSearch { get; set; }
 
     /// <summary>
+    /// Gets or sets a value indicating whether 启用显示tvdb搜索结果.
+    /// </summary>
+    public bool EnableTvdbSearch { get; set; }
+
+    /// <summary>
     /// Gets or sets a value indicating whether 启用tmdb自动匹配.
     /// </summary>
     public bool EnableTmdbMatch { get; set; } = true;
 
     /// <summary>
+    /// Gets or sets a value indicating whether 启用tvdb自动匹配.
+    /// </summary>
+    public bool EnableTvdbMatch { get; set; } = true;
+
+    /// <summary>
     /// Gets or sets a value indicating whether 启用tmdb获取背景图.
     /// </summary>
     public bool EnableTmdbBackdrop { get; set; } = true;
+
+    /// <summary>
+    /// Gets or sets a value indicating whether 启用tvdb获取背景图.
+    /// </summary>
+    public bool EnableTvdbBackdrop { get; set; } = true;
 
     /// <summary>
     /// Gets or sets a value indicating whether 启用tmdb获取商标.
@@ -105,6 +125,11 @@ public class PluginConfiguration : BasePluginConfiguration
     /// Gets or sets tmdb series id to episode group id mapping.
     /// </summary>
     public string TmdbEpisodeGroupMap { get; set; } = string.Empty;
+
+    /// <summary>
+    /// Gets or sets tvdb series id to episode group id mapping.
+    /// </summary>
+    public string TvdbEpisodeGroupMap { get; set; } = string.Empty;
 
     /// <summary>
     /// Gets or sets a value indicating whether to use TVDB for specials placement.

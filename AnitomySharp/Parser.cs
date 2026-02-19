@@ -16,7 +16,7 @@ namespace AnitomySharp
 {
     /// <summary>
     /// Class to classify <see cref="Token"/>s
-    /// 
+    ///
     /// 用于标记(token)分类的类
     /// </summary>
     public class Parser
@@ -48,9 +48,9 @@ namespace AnitomySharp
 
         /// <summary>
         /// Constructs a new token parser
-        /// 
+        ///
         /// 构造一个标记(token)解析
-        /// 
+        ///
         /// 并创建ParserHelper和ParserNumber各一个实例
         /// </summary>
         /// <param name="elements">the list where parsed elements will be added</param>
@@ -68,7 +68,7 @@ namespace AnitomySharp
 
         /// <summary>
         /// Begins the parsing process
-        /// 
+        ///
         /// 开始处理
         /// </summary>
         /// <returns></returns>
@@ -100,7 +100,7 @@ namespace AnitomySharp
 
         /// <summary>
         /// Search for anime keywords.
-        /// 
+        ///
         /// 主要是根据关键词列表匹配标记(token)，并将匹配到的关键字添加到元素列表
         /// </summary>
         private void SearchForKeywords()
@@ -173,7 +173,7 @@ namespace AnitomySharp
 
         /// <summary>
         /// Search for episode number.
-        /// 
+        ///
         /// 匹配标记列表中的集数
         /// </summary>
         private void SearchForEpisodeNumber()
@@ -242,8 +242,8 @@ namespace AnitomySharp
 
         /// <summary>
         /// Search for anime title
-        /// 
-        /// 搜索动画名 
+        ///
+        /// 搜索动画名
         /// </summary>
         private void SearchForAnimeTitle()
         {
@@ -349,7 +349,7 @@ namespace AnitomySharp
 
         /// <summary>
         /// Search for release group
-        /// 
+        ///
         /// 搜索发布组
         /// </summary>
         private void SearchForReleaseGroup()
@@ -377,7 +377,7 @@ namespace AnitomySharp
 
         /// <summary>
         /// Search for episode title
-        /// 
+        ///
         /// 搜索剧集标题
         /// </summary>
         private void SearchForEpisodeTitle()
@@ -404,7 +404,7 @@ namespace AnitomySharp
 
         /// <summary>
         /// Search for isolated numbers
-        /// 
+        ///
         /// 搜索孤立数字的处理逻辑
         /// </summary>
         private void SearchForIsolatedNumbers()
@@ -463,7 +463,7 @@ namespace AnitomySharp
 
         /// <summary>
         /// Validate Elements
-        /// 
+        ///
         /// 验证元素有效性
         /// </summary>
         private void ValidateElements()
@@ -504,7 +504,7 @@ namespace AnitomySharp
 
         /// <summary>
         /// Returns whether or not the parser contains this category
-        /// 
+        ///
         /// 判断当前的元素列表<see cref="Elements"/>是否包含传入的元素类别
         /// </summary>
         /// <param name="category"></param>
@@ -516,7 +516,7 @@ namespace AnitomySharp
 
         /// <summary>
         /// Returns the value of a particular category
-        /// 
+        ///
         /// 返回传入元素类别的值
         /// </summary>
         /// <param name="category"></param>
@@ -535,7 +535,7 @@ namespace AnitomySharp
 
         /// <summary>
         /// Deletes the first element with the same <c>element.Category</c> and returns the deleted element's position.
-        /// 
+        ///
         /// 删除第一个具有相同<see cref="Element.Category"/>的元素
         /// </summary>
         /// <param name="element"></param>

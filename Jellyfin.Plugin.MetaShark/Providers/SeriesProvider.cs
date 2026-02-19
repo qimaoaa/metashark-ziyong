@@ -28,8 +28,8 @@ namespace Jellyfin.Plugin.MetaShark.Providers
 
     public class SeriesProvider : BaseProvider, IRemoteMetadataProvider<Series, SeriesInfo>
     {
-        public SeriesProvider(IHttpClientFactory httpClientFactory, ILoggerFactory loggerFactory, ILibraryManager libraryManager, IHttpContextAccessor httpContextAccessor, DoubanApi doubanApi, TmdbApi tmdbApi, OmdbApi omdbApi, ImdbApi imdbApi)
-            : base(httpClientFactory, loggerFactory.CreateLogger<SeriesProvider>(), libraryManager, httpContextAccessor, doubanApi, tmdbApi, omdbApi, imdbApi)
+        public SeriesProvider(IHttpClientFactory httpClientFactory, ILoggerFactory loggerFactory, ILibraryManager libraryManager, IHttpContextAccessor httpContextAccessor, DoubanApi doubanApi, TmdbApi tmdbApi, OmdbApi omdbApi, ImdbApi imdbApi, TvdbApi tvdbApi)
+            : base(httpClientFactory, loggerFactory.CreateLogger<SeriesProvider>(), libraryManager, httpContextAccessor, doubanApi, tmdbApi, omdbApi, imdbApi, tvdbApi)
         {
         }
 
@@ -78,6 +78,27 @@ namespace Jellyfin.Plugin.MetaShark.Providers
                 }));
             }
 
+            // 尝试从tvdb搜索
+            if (Config.EnableTvdbSearch)
+            {
+                this.Log("Searching TVDB for: {0}", searchInfo.Name);
+                var tvdbList = await this.TvdbApi.SearchSeriesAsync(searchInfo.Name, searchInfo.MetadataLanguage, cancellationToken).ConfigureAwait(false);
+                this.Log("TVDB search returned {0} results", tvdbList.Count);
+                result.AddRange(tvdbList.Take(Configuration.PluginConfiguration.MAXSEARCHRESULT).Select(x =>
+                {
+                    var finalTvdbId = !string.IsNullOrEmpty(x.TvdbId) ? x.TvdbId : x.Id;
+                    return new RemoteSearchResult
+                    {
+                        ProviderIds = new Dictionary<string, string> { { "Tvdb", finalTvdbId }, { MetaSharkPlugin.ProviderId, $"tvdb_{finalTvdbId}" } },
+                        Name = string.Format(CultureInfo.InvariantCulture, "[TVDB]{0}", x.Name),
+                        ImageUrl = x.ImageUrl?.ToString(),
+                        Overview = x.Overview,
+                        ProductionYear = int.TryParse(x.Year, out var year) ? year : null,
+                        SearchProviderName = this.Name,
+                    };
+                }));
+            }
+
             return result;
         }
 
@@ -95,24 +116,59 @@ namespace Jellyfin.Plugin.MetaShark.Providers
 
             var sid = info.GetProviderId(DoubanProviderId);
             var tmdbId = info.GetProviderId(MetadataProvider.Tmdb);
+            var tvdbId = info.GetProviderId("Tvdb");
+            var metaSourceStr = info.GetProviderId(MetaSharkPlugin.ProviderId);
             var metaSource = info.GetMetaSource(MetaSharkPlugin.ProviderId);
 
-            // 注意：会存在元数据有tmdbId，但metaSource没值的情况（之前由TMDB插件刮削导致）
-            var hasTmdbMeta = metaSource == MetaSource.Tmdb && !string.IsNullOrEmpty(tmdbId);
-            var hasDoubanMeta = metaSource != MetaSource.Tmdb && !string.IsNullOrEmpty(sid);
-            this.Log($"GetSeriesMetadata of [name]: {info.Name} [fileName]: {fileName} metaSource: {metaSource} EnableTmdb: {Config.EnableTmdb}");
-            if (!hasDoubanMeta && !hasTmdbMeta)
+            // 初始状态判定：只要 MetaSharkID 包含 tvdb_，或者手动指定了 TvdbID 且 metaSource 还没定，就走 TVDB
+            var isTvdb = (metaSource == MetaSource.Tvdb || (metaSourceStr != null && metaSourceStr.StartsWith("tvdb", StringComparison.OrdinalIgnoreCase)));
+            var isTmdb = metaSource == MetaSource.Tmdb && !string.IsNullOrEmpty(tmdbId);
+            var isDouban = metaSource == MetaSource.Douban && !string.IsNullOrEmpty(sid);
+
+            this.Log($"GetSeriesMetadata of [name]: {info.Name} [fileName]: {fileName} metaSource: {metaSource} tvdbId: {tvdbId} isTvdb: {isTvdb}");
+
+            if (!isDouban && !isTmdb && !isTvdb)
             {
                 // 自动扫描搜索匹配元数据
                 sid = await this.GuessByDoubanAsync(info, cancellationToken).ConfigureAwait(false);
-                if (string.IsNullOrEmpty(sid) && Config.EnableTmdbMatch)
+                if (!string.IsNullOrEmpty(sid))
+                {
+                    isDouban = true;
+                }
+                else if (Config.EnableTmdbMatch)
                 {
                     tmdbId = await this.GuestByTmdbAsync(info, cancellationToken).ConfigureAwait(false);
-                    metaSource = MetaSource.Tmdb;
+                    if (!string.IsNullOrEmpty(tmdbId))
+                    {
+                        isTmdb = true;
+                        metaSource = MetaSource.Tmdb;
+                    }
+                }
+
+                if (!isDouban && !isTmdb && Config.EnableTvdbMatch)
+                {
+                    tvdbId = await this.GuessByTvdbAsync(info, cancellationToken).ConfigureAwait(false);
+                    if (!string.IsNullOrEmpty(tvdbId))
+                    {
+                        isTvdb = true;
+                        metaSource = MetaSource.Tvdb;
+                        info.SetProviderId("Tvdb", tvdbId);
+                    }
                 }
             }
 
-            if (metaSource != MetaSource.Tmdb && !string.IsNullOrEmpty(sid))
+            // 1. 优先处理 TVDB
+            if (isTvdb)
+            {
+                result = await this.GetMetadataByTvdb(tvdbId, info, cancellationToken).ConfigureAwait(false);
+            }
+            // 2. 其次处理 TMDB
+            else if (isTmdb)
+            {
+                result = await this.GetMetadataByTmdb(tmdbId, info, cancellationToken).ConfigureAwait(false);
+            }
+            // 3. 最后处理 豆瓣
+            else if (isDouban && !string.IsNullOrEmpty(sid))
             {
                 this.Log($"GetSeriesMetadata of douban [sid]: {sid}");
                 var subject = await this.DoubanApi.GetMovieAsync(sid, cancellationToken).ConfigureAwait(false);
@@ -150,23 +206,29 @@ namespace Jellyfin.Plugin.MetaShark.Providers
                     item.SetProviderId(MetadataProvider.Imdb, newImdbId);
                 }
 
-                // 搜索匹配tmdbId
+                // 尝试补全 TMDB 和 TVDB ID
                 var newTmdbId = await this.FindTmdbId(seriesName, subject.Imdb, subject.Year, info, cancellationToken).ConfigureAwait(false);
                 if (!string.IsNullOrEmpty(newTmdbId))
                 {
-                    tmdbId = newTmdbId;
-                    item.SetProviderId(MetadataProvider.Tmdb, tmdbId);
+                    item.SetProviderId(MetadataProvider.Tmdb, newTmdbId);
+                    await this.TryPopulateTvExternalIdsFromTmdbAsync(item, newTmdbId, info, cancellationToken).ConfigureAwait(false);
                 }
 
-                if (!string.IsNullOrEmpty(tmdbId))
+                // 如果 TMDB 没带回 TVDB ID，尝试直接搜索 TVDB
+                if (string.IsNullOrEmpty(item.GetProviderId("Tvdb")) && Config.EnableTvdbMatch)
                 {
-                    await this.TryPopulateTvExternalIdsFromTmdbAsync(item, tmdbId, info, cancellationToken).ConfigureAwait(false);
+                    var foundTvdbId = await this.GuessByTvdbAsync(info, cancellationToken).ConfigureAwait(false);
+                    if (!string.IsNullOrEmpty(foundTvdbId))
+                    {
+                        item.SetProviderId("Tvdb", foundTvdbId);
+                        this.Log("Set series tvdb id by direct search. tvdbId: {0}", foundTvdbId);
+                    }
                 }
 
                 // 通过imdb获取电影分级信息
-                if (Config.EnableTmdbOfficialRating && !string.IsNullOrEmpty(tmdbId))
+                if (Config.EnableTmdbOfficialRating && !string.IsNullOrEmpty(item.GetProviderId(MetadataProvider.Tmdb)))
                 {
-                    var officialRating = await this.GetTmdbOfficialRating(info, tmdbId, cancellationToken).ConfigureAwait(false);
+                    var officialRating = await this.GetTmdbOfficialRating(info, item.GetProviderId(MetadataProvider.Tmdb)!, cancellationToken).ConfigureAwait(false);
                     if (!string.IsNullOrEmpty(officialRating))
                     {
                         item.OfficialRating = officialRating;
@@ -184,16 +246,141 @@ namespace Jellyfin.Plugin.MetaShark.Providers
                     ImageUrl = GetLocalProxyImageUrl(new Uri(c.Img, UriKind.Absolute)).ToString(),
                     ProviderIds = new Dictionary<string, string> { { DoubanProviderId, c.Id } },
                 }));
+            }
 
+            // --- 统一评分补全逻辑 ---
+            if (result.HasMetadata && result.Item != null)
+            {
+                // 1. 尝试从豆瓣补全评分
+                var currentSid = result.Item.GetProviderId(DoubanProviderId);
+                if (string.IsNullOrEmpty(currentSid))
+                {
+                    currentSid = await this.GuessByDoubanAsync(info, cancellationToken).ConfigureAwait(false);
+                }
+
+                if (!string.IsNullOrEmpty(currentSid))
+                {
+                    var doubanSubject = await this.DoubanApi.GetMovieAsync(currentSid, cancellationToken).ConfigureAwait(false);
+                    if (doubanSubject != null && doubanSubject.Rating > 0)
+                    {
+                        this.Log("Preferring Douban rating: {0}", doubanSubject.Rating);
+                        result.Item.CommunityRating = doubanSubject.Rating;
+                    }
+                }
+
+                // 2. 如果豆瓣没分，尝试从 TMDB 补全
+                if (result.Item.CommunityRating == null || result.Item.CommunityRating <= 0)
+                {
+                    var currentTmdbId = result.Item.GetProviderId(MetadataProvider.Tmdb);
+                    if (!string.IsNullOrEmpty(currentTmdbId))
+                    {
+                        var tmdbShow = await this.TmdbApi.GetSeriesAsync(currentTmdbId.ToInt(), info.MetadataLanguage, info.MetadataLanguage, cancellationToken).ConfigureAwait(false);
+                        if (tmdbShow != null && tmdbShow.VoteAverage > 0)
+                        {
+                            this.Log("Fallback to TMDB rating: {0}", tmdbShow.VoteAverage);
+                            result.Item.CommunityRating = (float)System.Math.Round(tmdbShow.VoteAverage, 2);
+                        }
+                    }
+                }
+            }
+
+            return result;
+        }
+
+        private async Task<MetadataResult<Series>> GetMetadataByTvdb(string? tvdbId, ItemLookupInfo info, CancellationToken cancellationToken)
+        {
+            var result = new MetadataResult<Series>();
+            if (string.IsNullOrEmpty(tvdbId) || !int.TryParse(tvdbId, out var id))
+            {
                 return result;
             }
 
-            if (metaSource == MetaSource.Tmdb && !string.IsNullOrEmpty(tmdbId))
+            this.Log($"GetSeriesMetadata of tvdb [id]: \"{tvdbId}\"");
+            var tvdbSeries = await this.TvdbApi.GetSeriesAsync(id, info.MetadataLanguage, cancellationToken).ConfigureAwait(false);
+
+            if (tvdbSeries == null)
             {
-                return await this.GetMetadataByTmdb(tmdbId, info, cancellationToken).ConfigureAwait(false);
+                return result;
             }
 
-            this.Log($"匹配失败！可检查下年份是否与豆瓣一致，是否需要登录访问. [name]: {info.Name} [year]: {info.Year}");
+            var name = tvdbSeries.Name;
+            var overview = tvdbSeries.Overview;
+
+            // 强制扫描中文翻译
+            if (tvdbSeries.Translations != null)
+            {
+                var targetLang = info.MetadataLanguage ?? "zh-CN";
+                var langCode = targetLang.Split('-')[0].ToUpperInvariant();
+
+                // 1. 查找标题翻译
+                if (tvdbSeries.Translations.NameTranslations != null)
+                {
+                    var translation = tvdbSeries.Translations.NameTranslations.FirstOrDefault(t =>
+                        t.Language != null && (
+                            t.Language.Equals(targetLang, StringComparison.OrdinalIgnoreCase) ||
+                            t.Language.Equals(langCode, StringComparison.OrdinalIgnoreCase) ||
+                            t.Language.Equals("ZHO", StringComparison.OrdinalIgnoreCase) ||
+                            t.Language.Equals("CHI", StringComparison.OrdinalIgnoreCase) ||
+                            t.Language.Equals("ZH", StringComparison.OrdinalIgnoreCase)));
+
+                    if (translation != null && !string.IsNullOrEmpty(translation.Name))
+                    {
+                        name = translation.Name;
+                    }
+                }
+
+                // 2. 查找描述翻译
+                if (tvdbSeries.Translations.OverviewTranslations != null)
+                {
+                    var translation = tvdbSeries.Translations.OverviewTranslations.FirstOrDefault(t =>
+                        t.Language != null && (
+                            t.Language.Equals(targetLang, StringComparison.OrdinalIgnoreCase) ||
+                            t.Language.Equals(langCode, StringComparison.OrdinalIgnoreCase) ||
+                            t.Language.Equals("ZHO", StringComparison.OrdinalIgnoreCase) ||
+                            t.Language.Equals("CHI", StringComparison.OrdinalIgnoreCase) ||
+                            t.Language.Equals("ZH", StringComparison.OrdinalIgnoreCase)));
+
+                    if (translation != null && !string.IsNullOrEmpty(translation.Overview))
+                    {
+                        overview = translation.Overview;
+                    }
+                }
+            }
+
+            var series = new Series
+            {
+                Name = name,
+                Overview = overview,
+            };
+
+            if (DateTime.TryParse(tvdbSeries.FirstAired, out var premiereDate))
+            {
+                series.PremiereDate = premiereDate;
+                series.ProductionYear = premiereDate.Year;
+            }
+
+            // 类别
+            if (tvdbSeries.Genres != null)
+            {
+                series.Genres = tvdbSeries.Genres.Select(g => g.Name).ToArray();
+            }
+
+            // 制片商
+            if (tvdbSeries.Companies != null)
+            {
+                // 筛选类型为 "Network" 或 "Production Company" 的公司
+                series.Studios = tvdbSeries.Companies
+                    .Where(c => c.CompanyType?.Name == "Network" || c.CompanyType?.Name == "Production Company")
+                    .Select(c => c.Name)
+                    .ToArray();
+            }
+
+            series.SetProviderId("Tvdb", tvdbId);
+            series.SetProviderId(MetaSharkPlugin.ProviderId, $"tvdb_{tvdbId}");
+
+            result.Item = series;
+            result.QueriedById = true;
+            result.HasMetadata = true;
             return result;
         }
 
@@ -362,7 +549,7 @@ namespace Jellyfin.Plugin.MetaShark.Providers
 
                 if (!string.IsNullOrEmpty(ids.TvdbId))
                 {
-                    series.SetProviderId(MetadataProvider.Tvdb, ids.TvdbId);
+                    series.SetProviderId("Tvdb", ids.TvdbId);
                 }
             }
 
@@ -404,7 +591,7 @@ namespace Jellyfin.Plugin.MetaShark.Providers
 
             if (!string.IsNullOrWhiteSpace(externalIds.TvdbId))
             {
-                series.SetProviderId(MetadataProvider.Tvdb, externalIds.TvdbId);
+                series.SetProviderId("Tvdb", externalIds.TvdbId);
                 this.Log("Set series tvdb id by tmdb external ids. tmdbId: {0} tvdbId: {1}", tmdbId, externalIds.TvdbId);
             }
         }
@@ -450,7 +637,6 @@ namespace Jellyfin.Plugin.MetaShark.Providers
 
                 foreach (var person in seriesResult.Credits.Crew)
                 {
-                    // Normalize this
                     var type = MapCrewToPersonType(person);
 
                     if (!keepTypes.Contains(type, StringComparer.OrdinalIgnoreCase)

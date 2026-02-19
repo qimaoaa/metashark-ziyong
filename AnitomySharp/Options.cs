@@ -13,7 +13,7 @@ namespace AnitomySharp
 
     /// <summary>
     /// AnitomySharp search configuration options
-    /// 
+    ///
     /// 提取元素时的默认配置项
     /// </summary>
     public class Options

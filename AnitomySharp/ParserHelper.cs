@@ -17,7 +17,7 @@ namespace AnitomySharp
 
     /// <summary>
     /// Utility class to assist in the parsing.
-    /// 
+    ///
     /// 辅助解析的工具类
     /// </summary>
     public class ParserHelper
@@ -58,12 +58,12 @@ namespace AnitomySharp
     };
 
         /// <summary>
-        /// 
+        ///
         /// </summary>
         private readonly Parser _parser;
 
         /// <summary>
-        /// 
+        ///
         /// </summary>
         /// <param name="parser"></param>
         public ParserHelper(Parser parser)
@@ -73,7 +73,7 @@ namespace AnitomySharp
 
         /// <summary>
         /// Returns whether or not the <c>result</c> matches the <c>category</c>.
-        /// 
+        ///
         /// 判断传入的标记(token)的类型是否与传入的类别一致
         /// </summary>
         /// <param name="result"></param>
@@ -86,7 +86,7 @@ namespace AnitomySharp
 
         /// <summary>
         /// Returns whether or not the <c>str</c> is a CRC string.
-        /// 
+        ///
         /// 如果给定字符串为CRC，则返回`true`
         /// </summary>
         /// <param name="str"></param>
@@ -97,7 +97,7 @@ namespace AnitomySharp
         }
         /// <summary>
         /// Returns whether or not the <c>character</c> is a dash character
-        /// 
+        ///
         /// 判断给定字符是否为破折号
         /// </summary>
         /// <param name="c"></param>
@@ -109,7 +109,7 @@ namespace AnitomySharp
 
         /// <summary>
         /// Returns a number from an original (e.g. 2nd)
-        /// 
+        ///
         /// 转换原始值中的英文数字
         /// </summary>
         /// <param name="str"></param>
@@ -145,7 +145,7 @@ namespace AnitomySharp
 
         /// <summary>
         /// Returns the index of the first digit in the <c>str</c>; -1 otherwise.
-        /// 
+        ///
         /// 返回<c>str</c>中第一个数字的索引位置
         /// </summary>
         /// <param name="str"></param>
@@ -165,7 +165,7 @@ namespace AnitomySharp
 
         /// <summary>
         /// Returns whether or not the <c>str</c> is a resolution.
-        /// 
+        ///
         /// 如果给定字符串为分辨率，则返回`true`
         /// </summary>
         /// <param name="str"></param>
@@ -197,8 +197,8 @@ namespace AnitomySharp
         }
         /// <summary>
         /// Returns whether or not the <c>category</c> is searchable.
-        /// 
-        /// 
+        ///
+        ///
         /// </summary>
         /// <param name="category"></param>
         /// <returns></returns>
@@ -230,8 +230,8 @@ namespace AnitomySharp
 
         /// <summary>
         /// Returns whether the <c>category</c> is singular.
-        /// 
-        /// 
+        ///
+        ///
         /// </summary>
         /// <param name="category"></param>
         /// <returns></returns>
@@ -257,7 +257,7 @@ namespace AnitomySharp
 
         /// <summary>
         /// Returns whether or not a token at the current <c>pos</c> is isolated(surrounded by braces).
-        /// 
+        ///
         /// 判断当前位置标记(token)是否孤立，是否被括号包裹
         /// </summary>
         /// <param name="pos"></param>
@@ -271,7 +271,7 @@ namespace AnitomySharp
         }
         /// <summary>
         /// Returns whether or not a token at the current <c>pos</c> is isolated(surrounded by braces, delimiter).
-        /// 
+        ///
         /// 判断当前位置标记(token)是否孤立，前面是否为分隔符，后面是否为括号包裹
         /// </summary>
         /// <param name="pos"></param>
@@ -286,7 +286,7 @@ namespace AnitomySharp
 
         /// <summary>
         /// Returns whether or not a token at the current <c>pos+1</c> is ElementAnimeType.
-        /// 
+        ///
         /// 判断当前标记(token)的下一个标记的类型是否为ElementAnimeType。如果是，则返回`true`
         /// </summary>
         /// <param name="pos"></param>
@@ -328,7 +328,7 @@ namespace AnitomySharp
 
         /// <summary>
         /// Finds and sets the anime season keyword.
-        /// 
+        ///
         /// 查找动画季度关键词并添加对应元素
         /// </summary>
         /// <param name="token"></param>
@@ -364,7 +364,7 @@ namespace AnitomySharp
 
         /// <summary>
         /// A Method to find the correct volume/episode number when prefixed (i.e. Vol.4).
-        /// 
+        ///
         /// 用于查找带前缀的正确的卷数/集数值
         /// </summary>
         /// <param name="category">the category we're searching for</param>
@@ -398,7 +398,7 @@ namespace AnitomySharp
         }
 
         /// <summary>
-        /// 
+        ///
         /// </summary>
         /// <param name="category"></param>
         /// <param name="keepDelimiters"></param>

@@ -17,7 +17,7 @@ namespace AnitomySharp
 {
     /// <summary>
     /// A class that will tokenize an anime filename.
-    /// 
+    ///
     /// 用于动画文件名标记化的分词器
     /// </summary>
     public class Tokenizer
@@ -58,9 +58,9 @@ namespace AnitomySharp
 
         /// <summary>
         /// Tokenize a filename into <see cref="Element"/>s
-        /// 
+        ///
         /// 将传入的文件名标记化，拆分为单个元素
-        /// 
+        ///
         /// </summary>
         /// <param name="filename">the filename</param>
         /// <param name="elements">the list of elements where pre-identified tokens will be added</param>
@@ -76,7 +76,7 @@ namespace AnitomySharp
 
         /// <summary>
         /// Returns true if tokenization was successful; false otherwise.
-        /// 
+        ///
         /// 按照括号列表执行分词，根据<see cref="_tokens"/>大小判断是否标记化成功。成功返回true；否则为false。
         /// </summary>
         /// <returns></returns>
@@ -88,7 +88,7 @@ namespace AnitomySharp
 
         /// <summary>
         /// Adds a token to the internal list of tokens
-        /// 
+        ///
         /// 添加标记(token)至<see cref="_tokens">_tokens列表</see>
         /// </summary>
         /// <param name="category">the token category</param>
@@ -126,7 +126,7 @@ namespace AnitomySharp
 
         /// <summary>
         /// Tokenize by bracket.
-        /// 
+        ///
         /// 使用括号列表规则进行分词
         /// </summary>
         /// <remarks>括号总是成对出现。将括号作为停用符，将文件名划为多块</remarks>
@@ -156,13 +156,13 @@ namespace AnitomySharp
             var isBracketOpen = false;
             for (var i = 0; i < _filename.Length;)
             {
-                /**用于后续分词的终止位置，其逻辑为： 
+                /**用于后续分词的终止位置，其逻辑为：
                 1. 如果括号未闭合(isBracketOpen = false)，使用结果1：获得第一个(左)括号位置
                 2. 如果括号闭合(isBracketOpen = true)，使用结果2：查找上一次匹配到的(右)括号(matchingBracket)的位置
                  */
                 var foundIdx = !isBracketOpen ? FindFirstBracket(i, _filename.Length) : _filename.IndexOf(matchingBracket, i, StringComparison.Ordinal);
 
-                /** 
+                /**
                 1. 非括号起始至第一个左括号
                 2. 左括号右边至右括号左边
                 3. 最后一个右括号至末尾 */
@@ -190,7 +190,7 @@ namespace AnitomySharp
 
         /// <summary>
         /// Tokenize by looking for known anime identifiers
-        /// 
+        ///
         /// 根据已知的动画关键词列表来分词
         /// </summary>
         /// <param name="enclosed">whether or not the current <c>range</c> is enclosed in braces. 当前范围是否位于闭合的括号中。</param>
@@ -220,14 +220,14 @@ namespace AnitomySharp
                     offset = subRange.Offset - 1; // It's going to be incremented below
                 }
 
-                /** 
+                /**
                 1. 如果这段字符串最后一个字符属于预定义标识(keyword)，则Size为0
                 2. 否则，Size大于0 */
                 subRange.Size = ++offset - subRange.Offset;
             }
 
             // Either there was no preidentified token range, or we're now about to process the tail of our current range
-            /** 
+            /**
             1. 没有预定义标识的范围
             2. 处理当前范围剩余部分
              */
@@ -240,7 +240,7 @@ namespace AnitomySharp
 
         /// <summary>
         /// Tokenize by delimiters allowed in <see cref="Options"/>.AllowedDelimiters.
-        /// 
+        ///
         /// 使用提取元素时的分隔符配置进行分词
         /// </summary>
         /// <param name="enclosed">whether or not the current <code>range</code> is enclosed in braces</param>
@@ -287,7 +287,7 @@ namespace AnitomySharp
 
         /// <summary>
         /// Validates tokens (make sure certain words delimited by certain tokens aren't split)
-        /// 
+        ///
         /// 验证标记，确保由配置的分隔符提取标记(token)时<see cref="TokenizeByDelimiters"/>不会将有意义的单词拆分
         /// </summary>
         private void ValidateDelimiterTokens()

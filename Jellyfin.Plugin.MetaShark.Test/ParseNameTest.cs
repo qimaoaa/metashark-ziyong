@@ -57,45 +57,45 @@ namespace Jellyfin.Plugin.MetaShark.Test
             // 只英文
             fileName = "A.Chinese.Odyssey.Part.1.1995.BluRay.1080p.x265.10bit.2Audio-MiniHD";
             parseResult = NameParser.Parse(fileName);
-            Assert.AreEqual(parseResult.ChineseName, null);
+            Assert.AreEqual(parseResult.ChineseName, null!);
             Assert.AreEqual(parseResult.Name, "A Chinese Odyssey Part 1");
             Assert.AreEqual(parseResult.Year, 1995);
 
             fileName = "New.World.2013.BluRay.1080p.x265.10bit.MNHD-FRDS";
             parseResult = NameParser.Parse(fileName);
-            Assert.AreEqual(parseResult.ChineseName, null);
+            Assert.AreEqual(parseResult.ChineseName, null!);
             Assert.AreEqual(parseResult.Name, "New World");
             Assert.AreEqual(parseResult.Year, 2013);
 
             fileName = "Who.Am.I.1998.1080p.BluRay.x264.DTS-FGT";
             parseResult = NameParser.Parse(fileName);
-            Assert.AreEqual(parseResult.ChineseName, null);
+            Assert.AreEqual(parseResult.ChineseName, null!);
             Assert.AreEqual(parseResult.Name, "Who Am I");
             Assert.AreEqual(parseResult.Year, 1998);
 
             // 只中文
             fileName = "机动战士高达 逆袭的夏亚";
             parseResult = NameParser.Parse(fileName);
-            Assert.AreEqual(parseResult.ChineseName, null);
+            Assert.AreEqual(parseResult.ChineseName, null!);
             Assert.AreEqual(parseResult.Name, "机动战士高达 逆袭的夏亚");
-            Assert.AreEqual(parseResult.Year, null);
+            Assert.AreEqual(parseResult.Year, null!);
 
             fileName = "秒速5厘米";
             parseResult = NameParser.Parse(fileName);
-            Assert.AreEqual(parseResult.ChineseName, null);
+            Assert.AreEqual(parseResult.ChineseName, null!);
             Assert.AreEqual(parseResult.Name, "秒速5厘米");
-            Assert.AreEqual(parseResult.Year, null);
+            Assert.AreEqual(parseResult.Year, null!);
 
             // 标题加年份
             fileName = "V字仇杀队 (2006)";
             parseResult = NameParser.Parse(fileName);
-            Assert.AreEqual(parseResult.ChineseName, null);
+            Assert.AreEqual(parseResult.ChineseName, null!);
             Assert.AreEqual(parseResult.Name, "V字仇杀队");
             Assert.AreEqual(parseResult.Year, 2006);
 
             fileName = "逃学威龙2 (1992)";
             parseResult = NameParser.Parse(fileName);
-            Assert.AreEqual(parseResult.ChineseName, null);
+            Assert.AreEqual(parseResult.ChineseName, null!);
             Assert.AreEqual(parseResult.Name, "逃学威龙2");
             Assert.AreEqual(parseResult.Year, 1992);
 
@@ -105,7 +105,7 @@ namespace Jellyfin.Plugin.MetaShark.Test
             parseResult = NameParser.Parse(fileName);
             Assert.AreEqual(parseResult.ChineseName, "もののけ姫");
             Assert.AreEqual(parseResult.Name, "Mononoke Hime");
-            Assert.AreEqual(parseResult.Year, null);
+            Assert.AreEqual(parseResult.Year, null!);
         }
 
         [TestMethod]
@@ -125,7 +125,7 @@ namespace Jellyfin.Plugin.MetaShark.Test
             parseResult = NameParser.Parse(fileName);
             Assert.AreEqual(parseResult.Name, "She-Hulk Attorney at Law");
             Assert.AreEqual(parseResult.ParentIndexNumber, 1);
-            Assert.AreEqual(parseResult.Year, null);
+            Assert.AreEqual(parseResult.Year, null!);
 
             fileName = "Bright.Future.S01.2022.2160p.HDR.WEB-DL.H265.AAC-BlackTV[BTBTT]";
             parseResult = NameParser.Parse(fileName);
@@ -136,7 +136,7 @@ namespace Jellyfin.Plugin.MetaShark.Test
             fileName = "Back.to.the.Future.Part.II.1989.BluRay.1080p.x265.10bit.2Audio-MiniHD[BTBTT]";
             parseResult = NameParser.Parse(fileName);
             Assert.AreEqual(parseResult.Name, "Back to the Future Part II");
-            Assert.AreEqual(parseResult.ParentIndexNumber, null);
+            Assert.AreEqual(parseResult.ParentIndexNumber, null!);
             Assert.AreEqual(parseResult.Year, 1989);
 
 
@@ -146,21 +146,21 @@ namespace Jellyfin.Plugin.MetaShark.Test
             parseResult = NameParser.Parse(fileName);
             Assert.AreEqual(parseResult.ChineseName, "罗马浴场");
             Assert.AreEqual(parseResult.Name, "THERMAE ROMAE");
-            Assert.AreEqual(parseResult.ParentIndexNumber, null);
-            Assert.AreEqual(parseResult.Year, null);
+            Assert.AreEqual(parseResult.ParentIndexNumber, null!);
+            Assert.AreEqual(parseResult.Year, null!);
 
 
             // anime
             fileName = "[Nekomoe kissaten][Shin Ikkitousen][01-03][720p][CHT]";
             parseResult = NameParser.Parse(fileName);
             Assert.AreEqual(parseResult.Name, "Shin Ikkitousen");
-            Assert.AreEqual(parseResult.ParentIndexNumber, null);
-            Assert.AreEqual(parseResult.Year, null);
+            Assert.AreEqual(parseResult.ParentIndexNumber, null!);
+            Assert.AreEqual(parseResult.Year, null!);
 
             fileName = "[SAIO-Raws] Fullmetal Alchemist Brotherhood [BD 1920x1080 HEVC-10bit OPUS][2009]";
             parseResult = NameParser.Parse(fileName);
             Assert.AreEqual(parseResult.Name, "Fullmetal Alchemist Brotherhood");
-            Assert.AreEqual(parseResult.ParentIndexNumber, null);
+            Assert.AreEqual(parseResult.ParentIndexNumber, null!);
             Assert.AreEqual(parseResult.Year, 2009);
         }
 
@@ -171,13 +171,13 @@ namespace Jellyfin.Plugin.MetaShark.Test
             var fileName = "03.mp4";
             var parseResult = NameParser.ParseEpisode(fileName);
             Assert.AreEqual(parseResult.Name, "03");
-            Assert.AreEqual(parseResult.ParentIndexNumber, null);
+            Assert.AreEqual(parseResult.ParentIndexNumber, null!);
             Assert.AreEqual(parseResult.IndexNumber, 3);
 
             fileName = "03 4K.mp4";
             parseResult = NameParser.ParseEpisode(fileName);
             Assert.AreEqual(parseResult.Name, "03");
-            Assert.AreEqual(parseResult.ParentIndexNumber, null);
+            Assert.AreEqual(parseResult.ParentIndexNumber, null!);
             Assert.AreEqual(parseResult.IndexNumber, 3);
 
             // 混合中英文
@@ -213,26 +213,26 @@ namespace Jellyfin.Plugin.MetaShark.Test
             fileName = "プロポーズ大作戦Ep05_x264.mp4";
             parseResult = NameParser.ParseEpisode(fileName);
             Assert.AreEqual(parseResult.Name, "プロポーズ大作戦Ep05");
-            Assert.AreEqual(parseResult.ParentIndexNumber, null);
+            Assert.AreEqual(parseResult.ParentIndexNumber, null!);
             Assert.AreEqual(parseResult.IndexNumber, 5);
 
             fileName = "[01] [ANK-Raws] あっちこっち 01 (BDrip 1920x1080 HEVC-YUV420P10 FLAC)";
             parseResult = NameParser.ParseEpisode(fileName);
             Assert.AreEqual(parseResult.Name, "あっちこっち 01");
-            Assert.AreEqual(parseResult.ParentIndexNumber, null);
+            Assert.AreEqual(parseResult.ParentIndexNumber, null!);
             Assert.AreEqual(parseResult.IndexNumber, 1);
 
             // 只中文
             fileName = "齊天大聖 第02集";
             parseResult = NameParser.ParseEpisode(fileName);
             Assert.AreEqual(parseResult.Name, "齊天大聖");
-            Assert.AreEqual(parseResult.ParentIndexNumber, null);
+            Assert.AreEqual(parseResult.ParentIndexNumber, null!);
             Assert.AreEqual(parseResult.IndexNumber, 2);
 
             fileName = "齊天大聖 第 02 期";
             parseResult = NameParser.ParseEpisode(fileName);
             Assert.AreEqual(parseResult.Name, "齊天大聖");
-            Assert.AreEqual(parseResult.ParentIndexNumber, null);
+            Assert.AreEqual(parseResult.ParentIndexNumber, null!);
             Assert.AreEqual(parseResult.IndexNumber, 2);
 
 
@@ -240,14 +240,14 @@ namespace Jellyfin.Plugin.MetaShark.Test
             fileName = "Shigurui.TV.2007.EP01.BDRip.1920x1080.h264.AC3 5.1ch.2Audio";
             parseResult = NameParser.ParseEpisode(fileName);
             Assert.AreEqual(parseResult.Name, "Shigurui TV");
-            Assert.AreEqual(parseResult.ParentIndexNumber, null);
+            Assert.AreEqual(parseResult.ParentIndexNumber, null!);
             Assert.AreEqual(parseResult.IndexNumber, 1);
             Assert.AreEqual(parseResult.IsExtra, false);
 
             fileName = "[YYDM-11FANS][THERMAE_ROMAE][02][BDRIP][720P][X264-10bit_AAC][7FF2269F]";
             parseResult = NameParser.ParseEpisode(fileName);
             Assert.AreEqual(parseResult.Name, "THERMAE ROMAE");
-            Assert.AreEqual(parseResult.ParentIndexNumber, null);
+            Assert.AreEqual(parseResult.ParentIndexNumber, null!);
             Assert.AreEqual(parseResult.IndexNumber, 2);
 
             fileName = "Yes, Prime Minister s01e03 (The Grand Design) [PAL][DVD][DD2] x264.mkv";
@@ -266,19 +266,19 @@ namespace Jellyfin.Plugin.MetaShark.Test
             fileName = "[KTXP][Machikado_Mazoku_S2][01][BIG5][1080p]";
             parseResult = NameParser.ParseEpisode(fileName);
             Assert.AreEqual(parseResult.Name, "Machikado Mazoku");
-            Assert.AreEqual(parseResult.ParentIndexNumber, null);
+            Assert.AreEqual(parseResult.ParentIndexNumber, null!);
             Assert.AreEqual(parseResult.IndexNumber, 1);
 
             fileName = "[異域字幕組][她和她的貓 - Everything Flows -][She and Her Cat - Everything Flows -][01][720p][繁體]";
             parseResult = NameParser.ParseEpisode(fileName);
             Assert.AreEqual(parseResult.Name, "她和她的貓 - Everything Flows");
-            Assert.AreEqual(parseResult.ParentIndexNumber, null);
+            Assert.AreEqual(parseResult.ParentIndexNumber, null!);
             Assert.AreEqual(parseResult.IndexNumber, 1);
 
             fileName = "[980225][GREEN BUNNY] A KITE VOL.1.mkv";
             parseResult = NameParser.ParseEpisode(fileName);
             Assert.AreEqual(parseResult.Name, "A KITE");
-            Assert.AreEqual(parseResult.ParentIndexNumber, null);
+            Assert.AreEqual(parseResult.ParentIndexNumber, null!);
             Assert.AreEqual(parseResult.IndexNumber, 1);
 
             // anime特典
@@ -286,8 +286,8 @@ namespace Jellyfin.Plugin.MetaShark.Test
             parseResult = NameParser.ParseEpisode(fileName);
             Assert.IsTrue(parseResult.IsSpecial);
             Assert.AreEqual(parseResult.Name, "边界曲面的缺失之环");
-            Assert.AreEqual(parseResult.ParentIndexNumber, null);
-            Assert.AreEqual(parseResult.IndexNumber, null);
+            Assert.AreEqual(parseResult.ParentIndexNumber, null!);
+            Assert.AreEqual(parseResult.IndexNumber, null!);
 
 
 

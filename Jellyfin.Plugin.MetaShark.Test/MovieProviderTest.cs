@@ -43,7 +43,7 @@ namespace Jellyfin.Plugin.MetaShark.Test
             Task.Run(async () =>
             {
                 var info = new MovieInfo() { Name = "我", MetadataLanguage = "zh" };
-                var provider = new MovieProvider(httpClientFactory, loggerFactory, libraryManagerStub.Object, httpContextAccessorStub.Object, doubanApi, tmdbApi, omdbApi, imdbApi);
+                var provider = new MovieProvider(httpClientFactory, loggerFactory, libraryManagerStub.Object, httpContextAccessorStub.Object, doubanApi, tmdbApi, omdbApi, imdbApi, null!);
                 var result = await provider.GetSearchResults(info, CancellationToken.None);
                 Assert.IsNotNull(result);
 
@@ -66,7 +66,7 @@ namespace Jellyfin.Plugin.MetaShark.Test
             Task.Run(async () =>
             {
                 var info = new MovieInfo() { Name = "姥姥的外孙", MetadataLanguage = "zh" };
-                var provider = new MovieProvider(httpClientFactory, loggerFactory, libraryManagerStub.Object, httpContextAccessorStub.Object, doubanApi, tmdbApi, omdbApi, imdbApi);
+                var provider = new MovieProvider(httpClientFactory, loggerFactory, libraryManagerStub.Object, httpContextAccessorStub.Object, doubanApi, tmdbApi, omdbApi, imdbApi, null!);
                 var result = await provider.GetMetadata(info, CancellationToken.None);
                 Assert.IsNotNull(result.Item);
 
@@ -89,7 +89,7 @@ namespace Jellyfin.Plugin.MetaShark.Test
 
             Task.Run(async () =>
             {
-                var provider = new MovieProvider(httpClientFactory, loggerFactory, libraryManagerStub.Object, httpContextAccessorStub.Object, doubanApi, tmdbApi, omdbApi, imdbApi);
+                var provider = new MovieProvider(httpClientFactory, loggerFactory, libraryManagerStub.Object, httpContextAccessorStub.Object, doubanApi, tmdbApi, omdbApi, imdbApi, null!);
                 var result = await provider.GetMetadata(info, CancellationToken.None);
                 Assert.IsNotNull(result.Item);
 
@@ -112,7 +112,7 @@ namespace Jellyfin.Plugin.MetaShark.Test
 
             Task.Run(async () =>
             {
-                var provider = new MovieProvider(httpClientFactory, loggerFactory, libraryManagerStub.Object, httpContextAccessorStub.Object, doubanApi, tmdbApi, omdbApi, imdbApi);
+                var provider = new MovieProvider(httpClientFactory, loggerFactory, libraryManagerStub.Object, httpContextAccessorStub.Object, doubanApi, tmdbApi, omdbApi, imdbApi, null!);
                 var result = await provider.GetMetadata(info, CancellationToken.None);
                 Assert.IsNotNull(result.Item);
 

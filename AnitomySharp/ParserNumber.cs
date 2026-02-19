@@ -30,7 +30,7 @@ namespace AnitomySharp
         /// </summary>
         public const int AnimeYearMax = 2100;
         /// <summary>
-        /// 
+        ///
         /// </summary>
         private const int EpisodeNumberMax = 9999;
         /// <summary>
@@ -46,11 +46,11 @@ namespace AnitomySharp
         /// </summary>
         public const string RegexMatchOnlyEnd = @")\z";
         /// <summary>
-        /// 
+        ///
         /// </summary>
         private readonly Parser _parser;
         /// <summary>
-        /// 
+        ///
         /// </summary>
         /// <param name="parser"></param>
         public ParserNumber(Parser parser)
@@ -60,7 +60,7 @@ namespace AnitomySharp
 
         /// <summary>
         /// Returns whether or not the <c>number</c> is a volume number
-        /// 
+        ///
         /// 返验证卷数字符串是否有效
         /// </summary>
         private static bool IsValidVolumeNumber(string number)
@@ -70,7 +70,7 @@ namespace AnitomySharp
 
         /// <summary>
         /// Returns whether or not the <c>number</c> is a valid episode number.
-        /// 
+        ///
         /// 验证集数字符串是否有效
         /// </summary>
         private static bool IsValidEpisodeNumber(string number)
@@ -97,7 +97,7 @@ namespace AnitomySharp
 
         /// <summary>
         /// Sets the volume number.
-        /// 
+        ///
         /// 添加卷数元素
         /// </summary>
         /// <param name="number">the number</param>
@@ -115,7 +115,7 @@ namespace AnitomySharp
 
         /// <summary>
         /// Sets the anime episode number.
-        /// 
+        ///
         /// 添加集数元素
         /// </summary>
         /// <param name="number">the episode number</param>
@@ -160,7 +160,7 @@ namespace AnitomySharp
 
         /// <summary>
         /// Checks if a number follows the specified <c>token</c>
-        /// 
+        ///
         /// 确认此标记中是否包含给定元素类型的关键词，如果包含且其能满足匹配模式，则添加此元素
         /// </summary>
         /// <param name="category">the category to set if a number follows the <c>token</c></param>
@@ -233,7 +233,7 @@ namespace AnitomySharp
 
         /// <summary>
         /// Attempts to find an episode/season inside a <c>word</c>
-        /// 
+        ///
         /// 在传入的字符串中共尝试匹配季/集
         /// </summary>
         /// <param name="word">the word</param>
@@ -482,9 +482,9 @@ namespace AnitomySharp
 
         /// <summary>
         /// Match Japanese patterns. e.g. U+8A71 is used as counter for stories, episodes of TV series, etc.
-        /// 
+        ///
         /// 匹配日文中常见顺序词
-        /// 
+        ///
         /// 符合这种匹配模式的，一般在集数后都紧跟本集标题 #TODO
         /// </summary>
         /// <param name="word">the word</param>
@@ -568,7 +568,7 @@ namespace AnitomySharp
 
         /// <summary>
         /// Attempts to find an episode/season inside a <c>word</c>
-        /// 
+        ///
         /// 在传入的字符串中共尝试匹配季/集
         /// </summary>
         /// <param name="word">the word</param>
@@ -641,7 +641,7 @@ namespace AnitomySharp
 
         /// <summary>
         /// Searches for isolated numbers in a list of <c>tokens</c>.
-        /// 
+        ///
         /// 搜索孤立数字
         /// </summary>
         /// <param name="tokens">the list of tokens</param>
@@ -655,7 +655,7 @@ namespace AnitomySharp
 
         /// <summary>
         /// Searches for separated numbers in a list of <c>tokens</c>.
-        /// 
+        ///
         /// 搜索带分隔符的数字
         /// </summary>
         /// <param name="tokens">the list of tokens</param>
@@ -679,7 +679,7 @@ namespace AnitomySharp
 
         /// <summary>
         /// Searches for episode patterns in a list of <c>tokens</c>.
-        /// 
+        ///
         /// 在标记列表中匹配集数模式
         /// </summary>
         /// <param name="tokens">the list of tokens</param>
@@ -767,7 +767,7 @@ namespace AnitomySharp
 
         /// <summary>
         /// Searches for equivalent number in a list of <c>tokens</c>. e.g. 08(114)
-        /// 
+        ///
         /// 匹配自带等效集数的数字，常见于分割放送
         /// </summary>
         /// <param name="tokens">the list of tokens</param>
@@ -809,7 +809,7 @@ namespace AnitomySharp
         }
         /// <summary>
         /// Searches for equivalent number in a list of <c>tokens</c>. e.g. 08(114)
-        /// 
+        ///
         /// 匹配自带等效集数的数字，常见于分割放送，匹配括号包裹的数字
         /// </summary>
         /// <param name="tokens">the list of tokens</param>
@@ -854,7 +854,7 @@ namespace AnitomySharp
 
         /// <summary>
         /// Searches for the last number token in a list of <c>tokens</c>
-        /// 
+        ///
         /// 搜索最后一个数字
         /// </summary>
         /// <param name="tokens">the list of tokens</param>

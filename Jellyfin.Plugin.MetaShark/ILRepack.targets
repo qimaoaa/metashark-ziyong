@@ -1,29 +1,34 @@
 <?xml version="1.0" encoding="utf-8" ?>
 <Project xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
-  <PropertyGroup>
-    <DoILRepack Condition="'$(DoILRepack)' == ''">true</DoILRepack>
-  </PropertyGroup>
-
-  <Target Name="ILRepacker" AfterTargets="Build" Condition="'$(Configuration)'=='Release' AND '$(DoILRepack)'=='true'">
+  <Target Name="ILRepacker" AfterTargets="Build" Condition="'$(Configuration)'=='Release'">
 
     <ItemGroup>
       <InputAssemblies Include="$(OutputPath)$(AssemblyName).dll" />
       <InputAssemblies Include="$(OutputPath)RateLimiter.dll" />
       <InputAssemblies Include="$(OutputPath)ComposableAsync.Core.dll" />
       <InputAssemblies Include="$(OutputPath)TMDbLib.dll" />
-      <InputAssemblies Include="$(OutputPath)Newtonsoft.Json.dll" />
       <InputAssemblies Include="$(OutputPath)AngleSharp.dll" />
       <InputAssemblies Include="$(OutputPath)AnitomySharp.dll" />
     </ItemGroup>
 
+    <Message Importance="high" Text="ILRepack: Merging assemblies from $(OutputPath)..." />
+
     <ILRepack
       Parallel="false"
-      Internalize="true"
+      Internalize="false"
       DebugInfo="true"
       InputAssemblies="@(InputAssemblies)"
       LibraryPath="$(OutputPath)"
       TargetKind="Dll"
-      OutputFile="$(OutputPath)$(AssemblyName).dll"
+      OutputFile="$(OutputPath)Merged.Plugin.dll"
     />
+
+    <Message Importance="high" Text="ILRepack: Replacing original assembly with merged one..." />
+    
+    <!-- Use a robust copy/delete sequence to avoid file lock issues -->
+    <Copy SourceFiles="$(OutputPath)Merged.Plugin.dll" DestinationFiles="$(OutputPath)$(AssemblyName).dll" OverwriteReadOnlyFiles="true" />
+    <Delete Files="$(OutputPath)Merged.Plugin.dll" />
+    
+    <Message Importance="high" Text="ILRepack: Final standalone assembly created: $(AssemblyName).dll" />
   </Target>
 </Project>

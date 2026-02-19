@@ -17,9 +17,9 @@ namespace AnitomySharp
 
     /// <summary>
     /// A class to manager the list of known anime keywords. This class is analogous to <c>keyword.cpp</c> of Anitomy, and <c>KeywordManager.java</c> of AnitomyJ
-    /// 
+    ///
     /// 本类用于管理已知动漫关键词列表
-    /// 
+    ///
     /// </summary>
     public static class KeywordManager
     {
@@ -34,11 +34,11 @@ namespace AnitomySharp
 
         /// <summary>
         /// ~~一眼真~~
-        /// 
+        ///
         /// 在主逻辑前预处理用的关键词集合，优先处理后被视为一个标识(token)，不会被后续操作拆散。
-        /// 
+        ///
         /// 如果关键词中部分字符包含在<see cref="Options.AllowedDelimiters"/>，强烈建议添加到此列表（注意：仅添加无歧义关键词）
-        /// 
+        ///
         /// 如果没有添加，后续处理的时候会被<see cref="Options.AllowedDelimiters"/>拆分。不过程序带了验证方法<see cref="Tokenizer.ValidateDelimiterTokens"/>，可以一定程度上重新还原关键词
         /// </summary>
         private static readonly List<Tuple<Element.ElementCategory, List<string>>> PeekEntries;
@@ -67,7 +67,7 @@ namespace AnitomySharp
               "番外編", "總集編","DRAMA",
               "映像特典","特典","特典アニメ",
               // 特典 Special 剩下的各种类型可以全部命名成 SP，对于较特殊意义的特典也可以自定义命名
-              "SPECIAL", "SPECIALS", "SP", "SPs", "特報", 
+              "SPECIAL", "SPECIALS", "SP", "SPs", "特報",
               // 真人特典 Interview/Talk/Stage... 目前我们对于节目、采访、舞台活动、制作等三次元画面的长视频，一概怼成 IV。
               "IV",
               // 音乐视频 Music Video
@@ -166,7 +166,7 @@ namespace AnitomySharp
               "R1RAW","SNOW-RAWS","SFEO-RAWS","SHINSEN-SUBS","SHIROKOI","SWEETSUB","SUMISORA","SOFCJ-RAWS","TSDM",
               "THORA","TUCAPTIONS","TXXZ","UCCUSS","UHA-WINGS","U2-RIP","VCB-STUDIO","VCB-S","XYX98","XKSUB","XRIP",
               "异域-11番小队","YYDM","YUSYABU","YLBUDSUB","ZAGZAD","AHU-SUB",
-              "HYSUB", "SAKURATO", "SKYMOON-RAWS", "COMICAT&KISSSUB","FUSSOIR", 
+              "HYSUB", "SAKURATO", "SKYMOON-RAWS", "COMICAT&KISSSUB","FUSSOIR",
               // bangumi
               "ANI", "NC-RAWS", "LILITH-RAWS", "NAN-RAWS","MINGY","NANDESUKA","KISSSUB",
               // other
@@ -243,14 +243,14 @@ namespace AnitomySharp
 
             PeekEntries = new List<Tuple<Element.ElementCategory, List<string>>>
             {
-              Tuple.Create(Element.ElementCategory.ElementAnimeType, new List<string> { 
-              // 预告  
+              Tuple.Create(Element.ElementCategory.ElementAnimeType, new List<string> {
+              // 预告
               "WEB PREVIEW" }),
               Tuple.Create(Element.ElementCategory.ElementAudioTerm, new List<string> { "2.0CH", "5.1CH", "7.1CH", "DTS5.1", "MA.5.1", "MA.2.0", "MA.7.1", "TRUEHD5.1", "DDP5.1", "DD5.1", "DUAL AUDIO" }),
               Tuple.Create(Element.ElementCategory.ElementVideoTerm, new List<string> { "H.264", "H264", "H.265", "X.264", "23.976FPS", "29.97FPS", "59.94FPS", "59.940FPS" }),// e.g. "H264-Flac"
               Tuple.Create(Element.ElementCategory.ElementVideoResolution, new List<string> { "480P", "720P", "1080P", "2160P", "4K", "6K", "8K" }),
               Tuple.Create(Element.ElementCategory.ElementReleaseGroup, new List<string> { "X_X", "A.I.R.NESSUB", "FUDAN_NRC", "T.H.X", "MAHO.SUB", "OKAZU.SUB", "THUNDER.SUB","ORION ORIGIN", "NEKOMOE KISSATEN" }),
-              Tuple.Create(Element.ElementCategory.ElementReleaseInformation, new List<string> { 
+              Tuple.Create(Element.ElementCategory.ElementReleaseInformation, new List<string> {
                 // echi
                 "NO WATERMARK", "ALL PRODUCTS", "AN DERCEN", "BLUE EYES", "BOMB! CUTE! BOMB!", "COLLABORATION WORKS", "GREEN BUNNY", "GOLD BEAR", "HOODS ENTERTAINMENT", "HOT BEAR", "KING BEE", "PLATINUM MILKY", "MOON ROCK", "OBTAIN FUTURE", "QUEEN BEE", "SOFT DEMAND", "STUDIO ZEALOT", "SURVIVE MORE", "WHITE BEAR", "メリー ジェーン", "ビーム エンタテインメント", "蜜 -MITSU-","W.C.C.","J.A.V.N.","HSHARE.NET" })
             };
@@ -295,9 +295,9 @@ namespace AnitomySharp
 
         /// <summary>
         /// Finds a particular <c>keyword</c>. If found sets <c>category</c> and <c>options</c> to the found search result.
-        /// 
+        ///
         /// 查找给定的关键词，并更新其元素分类和关键词配置
-        /// 
+        ///
         /// 如果在<see cref="Keys"/>中找到，则将<see cref="Keys"/>中此关键词对应的元素分类和关键词配置赋给给定的关键词
         /// </summary>
         /// <param name="keyword">the keyword to search for</param>
@@ -326,7 +326,7 @@ namespace AnitomySharp
 
         /// <summary>
         /// Given a particular <c>filename</c> and <c>range</c> attempt to preidentify the token before we attempt the main parsing logic
-        /// 
+        ///
         /// 在使用主处理逻辑前，尝试对给定的文件名和范围预先确定标记(token)，关键词来自<see cref="PeekEntries"/>
         /// </summary>
         /// <param name="filename">the filename</param>
@@ -358,9 +358,9 @@ namespace AnitomySharp
 
         /// <summary>
         /// Returns the appropriate keyword container.
-        /// 
+        ///
         /// 返回合适的内部关键词元素词典<see cref="Keys"/>
-        /// 
+        ///
         /// 如果元素类型为文件扩展名，则返回空值的<see cref="Extensions"/>，否则返回<see cref="Keys"/>
         /// </summary>
         /// <param name="category"></param>
@@ -372,7 +372,7 @@ namespace AnitomySharp
 
         /// <summary>
         /// Adds a <c>category</c>, <c>options</c>, and <c>keywords</c> to the internal keywords list.
-        /// 
+        ///
         /// 将元素分类、关键词配置添加给指定的关键词列表。最终形成一个内部关键词元素词典<see cref="Keys"/>
         /// </summary>
         /// <param name="category"></param>
@@ -390,7 +390,7 @@ namespace AnitomySharp
 
     /// <summary>
     /// Keyword options for a particular keyword.
-    /// 
+    ///
     /// 关键词配置
     /// </summary>
     public class KeywordOptions
@@ -401,7 +401,7 @@ namespace AnitomySharp
         public bool Identifiable { get; }
         /// <summary>
         /// 是否可检索 #TODO
-        /// 
+        ///
         /// <see cref="ParserHelper.IsElementCategorySearchable"/>
         /// </summary>
         public bool Searchable { get; }
@@ -417,7 +417,7 @@ namespace AnitomySharp
 
         /// <summary>
         /// Constructs a new keyword options
-        /// 
+        ///
         /// 构造一个关键词配置
         /// </summary>
         /// <param name="identifiable">if the token is identifiable</param>
@@ -433,8 +433,8 @@ namespace AnitomySharp
     }
 
     /// <summary>
-    /// A Keyword 
-    /// 
+    /// A Keyword
+    ///
     /// 关键词结构体
     /// </summary>
     public struct Keyword
@@ -450,7 +450,7 @@ namespace AnitomySharp
 
         /// <summary>
         /// Constructs a new Keyword
-        /// 
+        ///
         /// 构造一个新的关键词
         /// </summary>
         /// <param name="category">the category of the keyword</param>

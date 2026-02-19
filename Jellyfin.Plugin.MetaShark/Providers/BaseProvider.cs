@@ -1,4 +1,4 @@
-﻿// <copyright file="BaseProvider.cs" company="PlaceholderCompany">
+// <copyright file="BaseProvider.cs" company="PlaceholderCompany">
 // Copyright (c) PlaceholderCompany. All rights reserved.
 // </copyright>
 
@@ -54,6 +54,7 @@ namespace Jellyfin.Plugin.MetaShark.Providers
         private readonly IHttpClientFactory httpClientFactory;
         private readonly DoubanApi doubanApi;
         private readonly TmdbApi tmdbApi;
+        private readonly TvdbApi tvdbApi;
         private readonly OmdbApi omdbApi;
         private readonly ImdbApi imdbApi;
         private readonly ILibraryManager libraryManager;
@@ -64,10 +65,11 @@ namespace Jellyfin.Plugin.MetaShark.Providers
         private readonly Regex regDoubanIdAttribute = new Regex(@"\[(?:douban|doubanid)-(\d+?)\]", RegexOptions.Compiled);
         private readonly Regex regTmdbIdAttribute = new Regex(@"\[(?:tmdb|tmdbid)-(\d+?)\]", RegexOptions.Compiled);
 
-        protected BaseProvider(IHttpClientFactory httpClientFactory, ILogger logger, ILibraryManager libraryManager, IHttpContextAccessor httpContextAccessor, DoubanApi doubanApi, TmdbApi tmdbApi, OmdbApi omdbApi, ImdbApi imdbApi)
+        protected BaseProvider(IHttpClientFactory httpClientFactory, ILogger logger, ILibraryManager libraryManager, IHttpContextAccessor httpContextAccessor, DoubanApi doubanApi, TmdbApi tmdbApi, OmdbApi omdbApi, ImdbApi imdbApi, TvdbApi tvdbApi)
         {
             this.doubanApi = doubanApi;
             this.tmdbApi = tmdbApi;
+            this.tvdbApi = tvdbApi;
             this.omdbApi = omdbApi;
             this.imdbApi = imdbApi;
             this.libraryManager = libraryManager;
@@ -75,32 +77,6 @@ namespace Jellyfin.Plugin.MetaShark.Providers
             this.httpClientFactory = httpClientFactory;
             this.httpContextAccessor = httpContextAccessor;
         }
-
-        protected static PluginConfiguration Config => MetaSharkPlugin.Instance?.Configuration ?? new PluginConfiguration();
-
-        protected ILogger Logger => this.logger;
-
-        protected IHttpClientFactory HttpClientFactory => this.httpClientFactory;
-
-        protected DoubanApi DoubanApi => this.doubanApi;
-
-        protected TmdbApi TmdbApi => this.tmdbApi;
-
-        protected OmdbApi OmdbApi => this.omdbApi;
-
-        protected ImdbApi ImdbApi => this.imdbApi;
-
-        protected ILibraryManager LibraryManager => this.libraryManager;
-
-        protected IHttpContextAccessor HttpContextAccessor => this.httpContextAccessor;
-
-        protected Regex RegMetaSourcePrefix => this.regMetaSourcePrefix;
-
-        protected Regex RegSeasonNameSuffix => this.regSeasonNameSuffix;
-
-        protected Regex RegDoubanIdAttribute => this.regDoubanIdAttribute;
-
-        protected Regex RegTmdbIdAttribute => this.regTmdbIdAttribute;
 
         /// <inheritdoc />
         public Task<HttpResponseMessage> GetImageResponse(string url, CancellationToken cancellationToken)
@@ -301,18 +277,79 @@ namespace Jellyfin.Plugin.MetaShark.Providers
                 }
             }
 
-            // // 带数字末尾的
-            // match = Regex.Match(fileName, @"[ ._](\d{1,2})$");
-            // if (match.Success && match.Groups.Count > 1)
-            // {
-            //     var seasonNumber = match.Groups[1].Value.ToInt();
-            //     if (seasonNumber > 0)
-            //     {
-            //         this.Log($"Found season number of filename: {fileName} seasonNumber: {seasonNumber}");
-            //         return seasonNumber;
-            //     }
-            // }
             return null;
+        }
+
+        protected static PluginConfiguration Config => MetaSharkPlugin.Instance?.Configuration ?? new PluginConfiguration();
+
+        protected ILogger Logger => this.logger;
+
+        protected IHttpClientFactory HttpClientFactory => this.httpClientFactory;
+
+        protected DoubanApi DoubanApi => this.doubanApi;
+
+        protected TmdbApi TmdbApi => this.tmdbApi;
+
+        protected TvdbApi TvdbApi => this.tvdbApi;
+
+        protected OmdbApi OmdbApi => this.omdbApi;
+
+        protected ImdbApi ImdbApi => this.imdbApi;
+
+        protected ILibraryManager LibraryManager => this.libraryManager;
+
+        protected IHttpContextAccessor HttpContextAccessor => this.httpContextAccessor;
+
+        protected Regex RegMetaSourcePrefix => this.regMetaSourcePrefix;
+
+        protected Regex RegSeasonNameSuffix => this.regSeasonNameSuffix;
+
+        protected Regex RegDoubanIdAttribute => this.regDoubanIdAttribute;
+
+        protected Regex RegTmdbIdAttribute => this.regTmdbIdAttribute;
+
+        protected static string MapDisplayOrderToTvdbType(string? displayOrder)
+        {
+            if (string.IsNullOrEmpty(displayOrder))
+            {
+                return "official";
+            }
+
+            return displayOrder.ToUpperInvariant() switch
+            {
+                "AIRED" => "official",
+                "DVD" => "dvd",
+                "ABSOLUTE" => "absolute",
+                _ => "official",
+            };
+        }
+
+        protected static string GetOriginalFileName(ItemLookupInfo info)
+        {
+            ArgumentNullException.ThrowIfNull(info);
+            if (string.IsNullOrEmpty(info.Path))
+            {
+                return info.Name;
+            }
+
+            switch (info)
+            {
+                case MovieInfo:
+                    // 当movie放在文件夹中并只有一部影片时, info.name是根据文件夹名解析的，但info.Path是影片的路径名
+                    // 当movie放在文件夹中并有多部影片时，info.Name和info.Path都是具体的影片
+                    var directoryName = Path.GetFileName(Path.GetDirectoryName(info.Path));
+                    if (!string.IsNullOrEmpty(directoryName) && !string.IsNullOrEmpty(info.Name) && directoryName.Contains(info.Name, StringComparison.Ordinal))
+                    {
+                        return directoryName;
+                    }
+
+                    return Path.GetFileNameWithoutExtension(info.Path) ?? info.Name;
+                case EpisodeInfo:
+                    return Path.GetFileNameWithoutExtension(info.Path) ?? info.Name;
+                default:
+                    // series和season的info.Path是文件夹路径
+                    return Path.GetFileName(info.Path) ?? info.Name;
+            }
         }
 
         protected static Uri GetLocalProxyImageUrl(Uri url)
@@ -396,125 +433,49 @@ namespace Jellyfin.Plugin.MetaShark.Providers
             return string.Empty;
         }
 
-        protected static string GetOriginalFileName(ItemLookupInfo info)
+        protected async Task<string?> GuessByTvdbAsync(ItemLookupInfo info, CancellationToken cancellationToken)
         {
             ArgumentNullException.ThrowIfNull(info);
-            if (string.IsNullOrEmpty(info.Path))
-            {
-                return info.Name;
-            }
+            var fileName = GetOriginalFileName(info);
 
-            switch (info)
-            {
-                case MovieInfo:
-                    // 当movie放在文件夹中并只有一部影片时, info.name是根据文件夹名解析的，但info.Path是影片的路径名
-                    // 当movie放在文件夹中并有多部影片时，info.Name和info.Path都是具体的影片
-                    var directoryName = Path.GetFileName(Path.GetDirectoryName(info.Path));
-                    if (!string.IsNullOrEmpty(directoryName) && !string.IsNullOrEmpty(info.Name) && directoryName.Contains(info.Name, StringComparison.Ordinal))
-                    {
-                        return directoryName;
-                    }
+            var parseResult = NameParser.Parse(fileName);
+            var searchName = !string.IsNullOrEmpty(parseResult.ChineseName) ? parseResult.ChineseName : parseResult.Name;
 
-                    return Path.GetFileNameWithoutExtension(info.Path) ?? info.Name;
-                case EpisodeInfo:
-                    return Path.GetFileNameWithoutExtension(info.Path) ?? info.Name;
-                default:
-                    // series和season的info.Path是文件夹路径
-                    return Path.GetFileName(info.Path) ?? info.Name;
-            }
-        }
+            this.Log($"GuessByTvdb of [name]: {info.Name} [file_name]: {fileName} [search name]: {searchName}");
 
-        protected async Task<TMDbLib.Objects.Search.TvSeasonEpisode?> GetEpisodeAsync(int seriesTmdbId, int? seasonNumber, int? episodeNumber, string displayOrder, string? language, string? imageLanguages, CancellationToken cancellationToken)
-        {
-            if (!seasonNumber.HasValue || !episodeNumber.HasValue)
-            {
-                return null;
-            }
+            var results = await this.TvdbApi.SearchSeriesAsync(searchName, info.MetadataLanguage, cancellationToken).ConfigureAwait(false);
 
-            var normalizedLanguage = language ?? string.Empty;
-            var normalizedImageLanguages = imageLanguages ?? string.Empty;
-            var seriesId = seriesTmdbId.ToString(CultureInfo.InvariantCulture);
-            if (TmdbEpisodeGroupMapping.TryGetGroupId(Config.TmdbEpisodeGroupMap, seriesId, out var groupId))
+            // 优先匹配年份
+            if (info.Year.HasValue && info.Year > 0)
             {
-                this.Log("TMDb episode group mapping hit: seriesId={0} groupId={1} season={2} episode={3}", seriesId, groupId, seasonNumber, episodeNumber);
-                var group = await this.TmdbApi
-                    .GetEpisodeGroupByIdAsync(groupId, normalizedLanguage, cancellationToken)
-                    .ConfigureAwait(false);
-                if (group != null)
+                var item = results.FirstOrDefault(x => x.Year == info.Year.Value.ToString(CultureInfo.InvariantCulture) && (x.Name == searchName || x.Name == info.Name));
+                if (item != null)
                 {
-                    var season = group.Groups.Find(s => s.Order == seasonNumber);
-
-                    // Episode order starts at 0
-                    var ep = season?.Episodes.Find(e => e.Order == episodeNumber - 1);
-                    if (ep is not null)
-                    {
-                        this.Log("TMDb episode group mapping resolved: seriesId={0} groupId={1} season={2} episode={3} -> S{4}E{5}", seriesId, groupId, seasonNumber, episodeNumber, ep.SeasonNumber, ep.EpisodeNumber);
-                        var result = await this.TmdbApi
-                            .GetSeasonAsync(seriesTmdbId, ep.SeasonNumber, normalizedLanguage, normalizedImageLanguages, cancellationToken)
-                            .ConfigureAwait(false);
-                        if (result == null || result.Episodes == null)
-                        {
-                            return null;
-                        }
-
-                        if (ep.EpisodeNumber > result.Episodes.Count)
-                        {
-                            return null;
-                        }
-
-                        return result.Episodes[ep.EpisodeNumber - 1];
-                    }
+                    var finalId = !string.IsNullOrEmpty(item.TvdbId) ? item.TvdbId : item.Id;
+                    this.Log($"Found tvdb [id]: {item.Name}({finalId}) by year match");
+                    return finalId;
                 }
             }
 
-            // 根据剧集组获取对应的剧集信息
-            if (!string.IsNullOrWhiteSpace(displayOrder))
+            // 其次匹配名称
+            var nameMatch = results.FirstOrDefault(x => x.Name == searchName || x.Name == info.Name);
+            if (nameMatch != null)
             {
-                var group = await this.TmdbApi
-                    .GetSeriesGroupAsync(seriesTmdbId, displayOrder, normalizedLanguage, normalizedImageLanguages, cancellationToken)
-                    .ConfigureAwait(false);
-                if (group != null)
-                {
-                    var season = group.Groups.Find(s => s.Order == seasonNumber);
-
-                    // Episode order starts at 0
-                    var ep = season?.Episodes.Find(e => e.Order == episodeNumber - 1);
-                    if (ep is not null)
-                    {
-                        // 利用season缓存取剧集信息会更快
-                        var result = await this.TmdbApi
-                            .GetSeasonAsync(seriesTmdbId, ep.SeasonNumber, normalizedLanguage, normalizedImageLanguages, cancellationToken)
-                            .ConfigureAwait(false);
-                        if (result == null || result.Episodes == null)
-                        {
-                            return null;
-                        }
-
-                        if (ep.EpisodeNumber > result.Episodes.Count)
-                        {
-                            return null;
-                        }
-
-                        return result.Episodes[ep.EpisodeNumber - 1];
-                    }
-                }
+                var finalId = !string.IsNullOrEmpty(nameMatch.TvdbId) ? nameMatch.TvdbId : nameMatch.Id;
+                this.Log($"Found tvdb [id]: {nameMatch.Name}({finalId}) by name match");
+                return finalId;
             }
 
-            // 利用season缓存取剧集信息会更快
-            var seasonResult = await this.TmdbApi
-                .GetSeasonAsync(seriesTmdbId, seasonNumber.Value, normalizedLanguage, normalizedImageLanguages, cancellationToken)
-                .ConfigureAwait(false);
-            if (seasonResult == null || seasonResult.Episodes == null)
+            // 最后取第一个
+            if (results.Any())
             {
-                return null;
+                var item = results[0];
+                var finalId = !string.IsNullOrEmpty(item.TvdbId) ? item.TvdbId : item.Id;
+                this.Log($"Found tvdb [id]: {item.Name}({finalId}) by first match");
+                return finalId;
             }
 
-            if (episodeNumber.Value > seasonResult.Episodes.Count)
-            {
-                return null;
-            }
-
-            return seasonResult.Episodes[episodeNumber.Value - 1];
+            return null;
         }
 
         protected async Task<string?> GuessByDoubanAsync(ItemLookupInfo info, CancellationToken cancellationToken)
@@ -579,14 +540,6 @@ namespace Jellyfin.Plugin.MetaShark.Providers
                     return null;
                 }
             }
-
-            //// 不存在年份，计算相似度，返回相似度大于0.8的第一个（可能出现冷门资源名称更相同的情况。。。）
-            // var jw = new JaroWinkler();
-            // item = result.Where(x => x.Category == cat && x.Rating > 5).OrderByDescending(x => Math.Max(jw.Similarity(searchName, x.Name), jw.Similarity(searchName, x.OriginalName))).FirstOrDefault();
-            // if (item != null && Math.Max(jw.Similarity(searchName, item.Name), jw.Similarity(searchName, item.OriginalName)) > 0.8)
-            // {
-            //     return item.Sid;
-            // }
 
             // 不存在年份时，返回豆瓣结果第一个
             item = result.Where(x => x.Category == cat).FirstOrDefault();
@@ -742,10 +695,6 @@ namespace Jellyfin.Plugin.MetaShark.Providers
             return null;
         }
 
-        /// <summary>
-        /// 豆瓣的imdb id可能是旧的，需要先从omdb接口获取最新的imdb id.
-        /// </summary>
-        /// <returns><placeholder>A <see cref="Task"/> representing the asynchronous operation.</placeholder></returns>
         protected async Task<string> CheckNewImdbID(string imdb, CancellationToken cancellationToken)
         {
             if (string.IsNullOrEmpty(imdb))
@@ -858,26 +807,97 @@ namespace Jellyfin.Plugin.MetaShark.Providers
             return this.RegSeasonNameSuffix.Replace(name, string.Empty);
         }
 
-        private static string GetImageLanguageParam(string preferredLanguage, string? originalLanguage = null)
+        protected async Task<TMDbLib.Objects.Search.TvSeasonEpisode?> GetEpisodeAsync(int seriesTmdbId, int? seasonNumber, int? episodeNumber, string displayOrder, string? language, string? imageLanguages, CancellationToken cancellationToken)
         {
-            var languageCodeMap = new Dictionary<string, string>()
+            if (!seasonNumber.HasValue || !episodeNumber.HasValue)
             {
-                { "法语", "fr" },
-                { "德语", "de" },
-                { "日语", "ja" },
-                { "俄语", "ru" },
-                { "韩语", "ko" },
-                { "泰语", "th" },
-            };
-            if (!string.IsNullOrEmpty(originalLanguage))
+                return null;
+            }
+
+            var normalizedLanguage = language ?? string.Empty;
+            var normalizedImageLanguages = imageLanguages ?? string.Empty;
+            var seriesIdStr = seriesTmdbId.ToString(CultureInfo.InvariantCulture);
+            if (TmdbEpisodeGroupMapping.TryGetGroupId(Config.TmdbEpisodeGroupMap, seriesIdStr, out var groupId))
             {
-                if (languageCodeMap.TryGetValue(originalLanguage, out var lang) && lang != preferredLanguage)
+                this.Log("TMDb episode group mapping hit: seriesId={0} groupId={1} season={2} episode={3}", seriesIdStr, groupId, seasonNumber, episodeNumber);
+                var group = await this.TmdbApi
+                    .GetEpisodeGroupByIdAsync(groupId, normalizedLanguage, cancellationToken)
+                    .ConfigureAwait(false);
+                if (group != null)
                 {
-                    return $"{preferredLanguage},{lang}";
+                    var season = group.Groups.Find(s => s.Order == seasonNumber);
+
+                    // Episode order starts at 0
+                    var ep = season?.Episodes.Find(e => e.Order == episodeNumber - 1);
+                    if (ep is not null)
+                    {
+                        this.Log("TMDb episode group mapping resolved: seriesId={0} groupId={1} season={2} episode={3} -> S{4}E{5}", seriesIdStr, groupId, seasonNumber, episodeNumber, ep.SeasonNumber, ep.EpisodeNumber);
+                        var result = await this.TmdbApi
+                            .GetSeasonAsync(seriesTmdbId, ep.SeasonNumber, normalizedLanguage, normalizedImageLanguages, cancellationToken)
+                            .ConfigureAwait(false);
+                        if (result == null || result.Episodes == null)
+                        {
+                            return null;
+                        }
+
+                        if (ep.EpisodeNumber > result.Episodes.Count)
+                        {
+                            return null;
+                        }
+
+                        return result.Episodes[ep.EpisodeNumber - 1];
+                    }
                 }
             }
 
-            return preferredLanguage;
+            // 根据剧集组获取对应的剧集信息
+            if (!string.IsNullOrWhiteSpace(displayOrder))
+            {
+                var group = await this.TmdbApi
+                    .GetSeriesGroupAsync(seriesTmdbId, displayOrder, normalizedLanguage, normalizedImageLanguages, cancellationToken)
+                    .ConfigureAwait(false);
+                if (group != null)
+                {
+                    var season = group.Groups.Find(s => s.Order == seasonNumber);
+
+                    // Episode order starts at 0
+                    var ep = season?.Episodes.Find(e => e.Order == episodeNumber - 1);
+                    if (ep is not null)
+                    {
+                        // 利用season缓存取剧集信息会更快
+                        var result = await this.TmdbApi
+                            .GetSeasonAsync(seriesTmdbId, ep.SeasonNumber, normalizedLanguage, normalizedImageLanguages, cancellationToken)
+                            .ConfigureAwait(false);
+                        if (result == null || result.Episodes == null)
+                        {
+                            return null;
+                        }
+
+                        if (ep.EpisodeNumber > result.Episodes.Count)
+                        {
+                            return null;
+                        }
+
+                        return result.Episodes[ep.EpisodeNumber - 1];
+                    }
+                }
+            }
+
+            // 利用season缓存取剧集信息会更快
+            var seasonResult = await this.TmdbApi
+                .GetSeasonAsync(seriesTmdbId, seasonNumber.Value, normalizedLanguage, normalizedImageLanguages, cancellationToken)
+                .ConfigureAwait(false);
+            if (seasonResult == null || seasonResult.Episodes == null)
+            {
+                return null;
+            }
+
+            if (episodeNumber.Value > seasonResult.Episodes.Count)
+            {
+                return null;
+            }
+
+            return seasonResult.Episodes[episodeNumber.Value - 1];
         }
 
         private static int? ParseChineseSeasonNumberByName(string name)
