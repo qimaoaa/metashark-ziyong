@@ -120,7 +120,7 @@ namespace Jellyfin.Plugin.MetaShark.Providers
                             // 查找对应的 Global Season ID
                             var seasonType = MapDisplayOrderToTvdbType(series.DisplayOrder);
                             var tvdbSeason = tvdbSeries.Seasons?.FirstOrDefault(s => s.Number == seasonNumber.Value && s.Type?.Type == seasonType);
-                            
+
                             // 优先使用季节记录自带的封面
                             if (tvdbSeason != null && !string.IsNullOrEmpty(tvdbSeason.Image))
                             {
@@ -146,7 +146,7 @@ namespace Jellyfin.Plugin.MetaShark.Providers
                                         Language = a.Language,
                                     }));
                             }
-                            
+
                             // 备选：如果按 seasonId 没找着，尝试找没有任何 seasonId 但可能是该季的海报（针对某些剧集数据不规范的情况）
                             if (res.Count == 0 && tvdbSeries.Artworks != null)
                             {

@@ -78,6 +78,34 @@ namespace Jellyfin.Plugin.MetaShark.Providers
             this.httpContextAccessor = httpContextAccessor;
         }
 
+        protected static PluginConfiguration Config => MetaSharkPlugin.Instance?.Configuration ?? new PluginConfiguration();
+
+        protected ILogger Logger => this.logger;
+
+        protected IHttpClientFactory HttpClientFactory => this.httpClientFactory;
+
+        protected DoubanApi DoubanApi => this.doubanApi;
+
+        protected TmdbApi TmdbApi => this.tmdbApi;
+
+        protected TvdbApi TvdbApi => this.tvdbApi;
+
+        protected OmdbApi OmdbApi => this.omdbApi;
+
+        protected ImdbApi ImdbApi => this.imdbApi;
+
+        protected ILibraryManager LibraryManager => this.libraryManager;
+
+        protected IHttpContextAccessor HttpContextAccessor => this.httpContextAccessor;
+
+        protected Regex RegMetaSourcePrefix => this.regMetaSourcePrefix;
+
+        protected Regex RegSeasonNameSuffix => this.regSeasonNameSuffix;
+
+        protected Regex RegDoubanIdAttribute => this.regDoubanIdAttribute;
+
+        protected Regex RegTmdbIdAttribute => this.regTmdbIdAttribute;
+
         /// <inheritdoc />
         public Task<HttpResponseMessage> GetImageResponse(string url, CancellationToken cancellationToken)
         {
@@ -280,34 +308,6 @@ namespace Jellyfin.Plugin.MetaShark.Providers
             return null;
         }
 
-        protected static PluginConfiguration Config => MetaSharkPlugin.Instance?.Configuration ?? new PluginConfiguration();
-
-        protected ILogger Logger => this.logger;
-
-        protected IHttpClientFactory HttpClientFactory => this.httpClientFactory;
-
-        protected DoubanApi DoubanApi => this.doubanApi;
-
-        protected TmdbApi TmdbApi => this.tmdbApi;
-
-        protected TvdbApi TvdbApi => this.tvdbApi;
-
-        protected OmdbApi OmdbApi => this.omdbApi;
-
-        protected ImdbApi ImdbApi => this.imdbApi;
-
-        protected ILibraryManager LibraryManager => this.libraryManager;
-
-        protected IHttpContextAccessor HttpContextAccessor => this.httpContextAccessor;
-
-        protected Regex RegMetaSourcePrefix => this.regMetaSourcePrefix;
-
-        protected Regex RegSeasonNameSuffix => this.regSeasonNameSuffix;
-
-        protected Regex RegDoubanIdAttribute => this.regDoubanIdAttribute;
-
-        protected Regex RegTmdbIdAttribute => this.regTmdbIdAttribute;
-
         protected static string MapDisplayOrderToTvdbType(string? displayOrder)
         {
             if (string.IsNullOrEmpty(displayOrder))
@@ -315,11 +315,11 @@ namespace Jellyfin.Plugin.MetaShark.Providers
                 return "official";
             }
 
-            return displayOrder.ToUpperInvariant() switch
+            return displayOrder.ToLowerInvariant() switch
             {
-                "AIRED" => "official",
-                "DVD" => "dvd",
-                "ABSOLUTE" => "absolute",
+                "aired" => "official",
+                "dvd" => "dvd",
+                "absolute" => "absolute",
                 _ => "official",
             };
         }
@@ -816,10 +816,10 @@ namespace Jellyfin.Plugin.MetaShark.Providers
 
             var normalizedLanguage = language ?? string.Empty;
             var normalizedImageLanguages = imageLanguages ?? string.Empty;
-            var seriesIdStr = seriesTmdbId.ToString(CultureInfo.InvariantCulture);
-            if (TmdbEpisodeGroupMapping.TryGetGroupId(Config.TmdbEpisodeGroupMap, seriesIdStr, out var groupId))
+            var seriesId = seriesTmdbId.ToString(CultureInfo.InvariantCulture);
+            if (TmdbEpisodeGroupMapping.TryGetGroupId(Config.TmdbEpisodeGroupMap, seriesId, out var groupId))
             {
-                this.Log("TMDb episode group mapping hit: seriesId={0} groupId={1} season={2} episode={3}", seriesIdStr, groupId, seasonNumber, episodeNumber);
+                this.Log("TMDb episode group mapping hit: seriesId={0} groupId={1} season={2} episode={3}", seriesId, groupId, seasonNumber, episodeNumber);
                 var group = await this.TmdbApi
                     .GetEpisodeGroupByIdAsync(groupId, normalizedLanguage, cancellationToken)
                     .ConfigureAwait(false);
@@ -831,7 +831,7 @@ namespace Jellyfin.Plugin.MetaShark.Providers
                     var ep = season?.Episodes.Find(e => e.Order == episodeNumber - 1);
                     if (ep is not null)
                     {
-                        this.Log("TMDb episode group mapping resolved: seriesId={0} groupId={1} season={2} episode={3} -> S{4}E{5}", seriesIdStr, groupId, seasonNumber, episodeNumber, ep.SeasonNumber, ep.EpisodeNumber);
+                        this.Log("TMDb episode group mapping resolved: seriesId={0} groupId={1} season={2} episode={3} -> S{4}E{5}", seriesId, groupId, seasonNumber, episodeNumber, ep.SeasonNumber, ep.EpisodeNumber);
                         var result = await this.TmdbApi
                             .GetSeasonAsync(seriesTmdbId, ep.SeasonNumber, normalizedLanguage, normalizedImageLanguages, cancellationToken)
                             .ConfigureAwait(false);
