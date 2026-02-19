@@ -30,6 +30,9 @@ namespace Jellyfin.Plugin.MetaShark.Providers
     using TMDbLib.Objects.General;
     using TMDbLib.Objects.Languages;
 
+    /// <summary>
+    /// Base provider for MetaShark.
+    /// </summary>
     public abstract class BaseProvider
     {
         /// <summary>
@@ -65,6 +68,9 @@ namespace Jellyfin.Plugin.MetaShark.Providers
         private readonly Regex regDoubanIdAttribute = new Regex(@"\[(?:douban|doubanid)-(\d+?)\]", RegexOptions.Compiled);
         private readonly Regex regTmdbIdAttribute = new Regex(@"\[(?:tmdb|tmdbid)-(\d+?)\]", RegexOptions.Compiled);
 
+        /// <summary>
+        /// Initializes a new instance of the <see cref="BaseProvider"/> class.
+        /// </summary>
         protected BaseProvider(IHttpClientFactory httpClientFactory, ILogger logger, ILibraryManager libraryManager, IHttpContextAccessor httpContextAccessor, DoubanApi doubanApi, TmdbApi tmdbApi, OmdbApi omdbApi, ImdbApi imdbApi, TvdbApi tvdbApi)
         {
             this.doubanApi = doubanApi;
@@ -78,27 +84,99 @@ namespace Jellyfin.Plugin.MetaShark.Providers
             this.httpContextAccessor = httpContextAccessor;
         }
 
-        /// <inheritdoc />
+        /// <summary>
+        /// Gets the configuration.
+        /// </summary>
+        protected static PluginConfiguration Config => MetaSharkPlugin.Instance?.Configuration ?? new PluginConfiguration();
+
+        /// <summary>
+        /// Gets the logger.
+        /// </summary>
+        protected ILogger Logger => this.logger;
+
+        /// <summary>
+        /// Gets the http client factory.
+        /// </summary>
+        protected IHttpClientFactory HttpClientFactory => this.httpClientFactory;
+
+        /// <summary>
+        /// Gets the douban api.
+        /// </summary>
+        protected DoubanApi DoubanApi => this.doubanApi;
+
+        /// <summary>
+        /// Gets the tmdb api.
+        /// </summary>
+        protected TmdbApi TmdbApi => this.tmdbApi;
+
+        /// <summary>
+        /// Gets the tvdb api.
+        /// </summary>
+        protected TvdbApi TvdbApi => this.tvdbApi;
+
+        /// <summary>
+        /// Gets the omdb api.
+        /// </summary>
+        protected OmdbApi OmdbApi => this.omdbApi;
+
+        /// <summary>
+        /// Gets the imdb api.
+        /// </summary>
+        protected ImdbApi ImdbApi => this.imdbApi;
+
+        /// <summary>
+        /// Gets the library manager.
+        /// </summary>
+        protected ILibraryManager LibraryManager => this.libraryManager;
+
+        /// <summary>
+        /// Gets the http context accessor.
+        /// </summary>
+        protected IHttpContextAccessor HttpContextAccessor => this.httpContextAccessor;
+
+        /// <summary>
+        /// Gets the meta source prefix regex.
+        /// </summary>
+        protected Regex RegMetaSourcePrefix => this.regMetaSourcePrefix;
+
+        /// <summary>
+        /// Gets the season name suffix regex.
+        /// </summary>
+        protected Regex RegSeasonNameSuffix => this.regSeasonNameSuffix;
+
+        /// <summary>
+        /// Gets the douban id attribute regex.
+        /// </summary>
+        protected Regex RegDoubanIdAttribute => this.regDoubanIdAttribute;
+
+        /// <summary>
+        /// Gets the tmdb id attribute regex.
+        /// </summary>
+        protected Regex RegTmdbIdAttribute => this.regTmdbIdAttribute;
+
+        /// <summary>
+        /// Gets the image response.
+        /// </summary>
         public Task<HttpResponseMessage> GetImageResponse(string url, CancellationToken cancellationToken)
         {
             ArgumentNullException.ThrowIfNull(url);
             return this.GetImageResponse(new Uri(url, UriKind.RelativeOrAbsolute), cancellationToken);
         }
 
-        /// <inheritdoc />
+        /// <summary>
+        /// Gets the image response.
+        /// </summary>
         public async Task<HttpResponseMessage> GetImageResponse(Uri url, CancellationToken cancellationToken)
         {
             ArgumentNullException.ThrowIfNull(url);
             var urlString = url.ToString();
             if (urlString.Contains("doubanio.com", StringComparison.OrdinalIgnoreCase))
             {
-                // 相对链接补全
                 if (!urlString.StartsWith("http", StringComparison.OrdinalIgnoreCase) && MetaSharkPlugin.Instance != null)
                 {
                     urlString = MetaSharkPlugin.Instance.GetLocalApiBaseUrl().ToString().TrimEnd('/') + urlString;
                 }
 
-                // 包含了代理地址的话，从url解析出原始豆瓣图片地址
                 if (urlString.Contains("/proxy/image", StringComparison.Ordinal))
                 {
                     var uri = new UriBuilder(urlString);
@@ -111,7 +189,6 @@ namespace Jellyfin.Plugin.MetaShark.Providers
 
                 this.Log("GetImageResponse url: {0}", urlString);
 
-                // 豆瓣图，带referer下载
                 using (var requestMessage = new HttpRequestMessage(HttpMethod.Get, urlString))
                 {
                     requestMessage.Headers.Add("User-Agent", DoubanApi.HTTPUSERAGENT);
@@ -128,154 +205,176 @@ namespace Jellyfin.Plugin.MetaShark.Providers
             }
         }
 
-        protected static PluginConfiguration Config => MetaSharkPlugin.Instance?.Configuration ?? new PluginConfiguration();
-
-        protected static string MapDisplayOrderToTvdbType(string? displayOrder)
+        /// <summary>
+        /// Guesses the douban season by year.
+        /// </summary>
+        public async Task<string?> GuestDoubanSeasonByYearAsync(string seriesName, int? year, int? seasonNumber, CancellationToken cancellationToken)
         {
-            if (string.IsNullOrEmpty(displayOrder))
+            if (year == null || year == 0)
             {
-                return "official";
+                return null;
             }
 
-            return displayOrder.ToLowerInvariant() switch
+            this.Log($"GuestDoubanSeasonByYear of [name]: {seriesName} [year]: {year}");
+
+            if (Config.EnableDoubanAvoidRiskControl)
             {
-                "aired" => "official",
-                "dvd" => "dvd",
-                "absolute" => "absolute",
-                _ => "official",
-            };
-        }
-
-        protected static string GetOriginalFileName(ItemLookupInfo info)
-        {
-            ArgumentNullException.ThrowIfNull(info);
-            if (string.IsNullOrEmpty(info.Path))
-            {
-                return info.Name;
-            }
-
-            switch (info)
-            {
-                case MovieInfo:
-                    var directoryName = Path.GetFileName(Path.GetDirectoryName(info.Path));
-                    if (!string.IsNullOrEmpty(directoryName) && !string.IsNullOrEmpty(info.Name) && directoryName.Contains(info.Name, StringComparison.Ordinal))
-                    {
-                        return directoryName;
-                    }
-
-                    return Path.GetFileNameWithoutExtension(info.Path) ?? info.Name;
-                case EpisodeInfo:
-                    return Path.GetFileNameWithoutExtension(info.Path) ?? info.Name;
-                default:
-                    return Path.GetFileName(info.Path) ?? info.Name;
-            }
-        }
-
-        protected static Uri GetLocalProxyImageUrl(Uri url)
-        {
-            ArgumentNullException.ThrowIfNull(url);
-            var baseUrl = MetaSharkPlugin.Instance?.GetLocalApiBaseUrl().ToString() ?? string.Empty;
-            var proxyBaseUrl = Config.DoubanImageProxyBaseUrl;
-            if (!string.IsNullOrWhiteSpace(proxyBaseUrl))
-            {
-                baseUrl = proxyBaseUrl.TrimEnd('/');
-            }
-
-            var encodedUrl = HttpUtility.UrlEncode(url.ToString());
-            return new Uri($"{baseUrl}/plugin/metashark/proxy/image/?url={encodedUrl}", UriKind.Absolute);
-        }
-
-        protected static string AdjustImageLanguage(string imageLanguage, string requestLanguage)
-        {
-            if (!string.IsNullOrEmpty(imageLanguage)
-                && !string.IsNullOrEmpty(requestLanguage)
-                && requestLanguage.Length > 2
-                && imageLanguage.Length == 2
-                && requestLanguage.StartsWith(imageLanguage, StringComparison.OrdinalIgnoreCase))
-            {
-                return requestLanguage;
-            }
-
-            return imageLanguage;
-        }
-
-        protected static Collection<RemoteImageInfo> AdjustImageLanguagePriority(IList<RemoteImageInfo> images, string preferLanguage, string alternativeLanguage)
-        {
-            var imagesOrdered = images.OrderByLanguageDescending(preferLanguage, alternativeLanguage).ToList();
-            if (alternativeLanguage == "ja" && !imagesOrdered.Any(x => x.Language == preferLanguage))
-            {
-                var idx = imagesOrdered.FindIndex(x => x.Language == alternativeLanguage);
-                if (idx >= 0)
+                var suggestResult = await this.DoubanApi.SearchBySuggestAsync(seriesName, cancellationToken).ConfigureAwait(false);
+                var suggestItem = suggestResult.Where(x => x.Year == year && x.Name == seriesName).FirstOrDefault();
+                if (suggestItem != null)
                 {
-                    imagesOrdered[idx].Language = null;
+                    this.Log($"Found douban [id]: {suggestItem.Name}({suggestItem.Sid}) (suggest)");
+                    return suggestItem.Sid;
+                }
+
+                suggestItem = suggestResult.Where(x => x.Year == year).FirstOrDefault();
+                if (suggestItem != null)
+                {
+                    this.Log($"Found douban [id]: {suggestItem.Name}({suggestItem.Sid}) (suggest)");
+                    return suggestItem.Sid;
                 }
             }
 
-            return new Collection<RemoteImageInfo>(imagesOrdered);
+            var result = await this.DoubanApi.SearchAsync(seriesName, cancellationToken).ConfigureAwait(false);
+            var item = result.Where(x => x.Category == "电视剧" && x.Year == year).FirstOrDefault();
+            if (item != null && !string.IsNullOrEmpty(item.Sid))
+            {
+                var nameIndexNumber = ParseChineseSeasonNumberByName(item.Name);
+                if (nameIndexNumber.HasValue && seasonNumber.HasValue && nameIndexNumber != seasonNumber)
+                {
+                    this.Log("GuestDoubanSeasonByYear not found!");
+                    return null;
+                }
+
+                this.Log($"Found douban [id]: {item.Name}({item.Sid})");
+                return item.Sid;
+            }
+
+            this.Log("GuestDoubanSeasonByYear not found!");
+            return null;
         }
 
-        protected static string MapCrewToPersonType(Crew crew)
+        /// <summary>
+        /// Guesses the douban season by season name.
+        /// </summary>
+        public async Task<string?> GuestDoubanSeasonBySeasonNameAsync(string name, int? seasonNumber, CancellationToken cancellationToken)
         {
-            ArgumentNullException.ThrowIfNull(crew);
-            if (crew.Department.Equals("production", StringComparison.InvariantCultureIgnoreCase)
-                && crew.Job.Contains("director", StringComparison.InvariantCultureIgnoreCase))
+            if (seasonNumber is null or 0)
             {
-                return PersonType.Director;
+                return null;
             }
 
-            if (crew.Department.Equals("production", StringComparison.InvariantCultureIgnoreCase)
-                && crew.Job.Contains("producer", StringComparison.InvariantCultureIgnoreCase))
+            var chineseSeasonNumber = Utils.ToChineseNumber(seasonNumber);
+            if (string.IsNullOrEmpty(chineseSeasonNumber))
             {
-                return PersonType.Producer;
+                return null;
             }
 
-            if (crew.Department.Equals("writing", StringComparison.InvariantCultureIgnoreCase))
+            var seasonName = (seasonNumber == 1) ? name : $"{name}{seasonNumber}";
+            var chineseSeasonName = $"{name} 第{chineseSeasonNumber}季";
+
+            this.Log($"GuestDoubanSeasonBySeasonNameAsync of [name]: {seasonName} 或 {chineseSeasonName}");
+
+            var result = await this.DoubanApi.SearchAsync(name, cancellationToken).ConfigureAwait(false);
+            var item = result.Where(x => x.Category == "电视剧" && x.Rating > 0 && (x.Name == seasonName || x.Name == chineseSeasonName)).FirstOrDefault();
+            if (item != null && !string.IsNullOrEmpty(item.Sid))
             {
-                return PersonType.Writer;
+                this.Log($"Found douban [id]: {item.Name}({item.Sid})");
+                return item.Sid;
             }
 
-            return string.Empty;
+            this.Log("GuestDoubanSeasonBySeasonNameAsync not found!");
+            return null;
         }
 
-        protected ILogger Logger => this.logger;
+        /// <summary>
+        /// Guesses the season number by directory name.
+        /// </summary>
+        public int? GuessSeasonNumberByDirectoryName(string path)
+        {
+            if (string.IsNullOrEmpty(path))
+            {
+                this.Log($"Season path is empty!");
+                return null;
+            }
 
-        protected IHttpClientFactory HttpClientFactory => this.httpClientFactory;
+            var fileName = Path.GetFileName(path);
+            if (string.IsNullOrEmpty(fileName))
+            {
+                return null;
+            }
 
-        protected DoubanApi DoubanApi => this.doubanApi;
+            var regSeason = new Regex(@"第([0-9零一二三四五六七八九]+?)(季|部)", RegexOptions.Compiled);
+            var match = regSeason.Match(fileName);
+            if (match.Success && match.Groups.Count > 1)
+            {
+                var seasonNumber = match.Groups[1].Value.ToInt();
+                if (seasonNumber <= 0)
+                {
+                    seasonNumber = Utils.ChineseNumberToInt(match.Groups[1].Value) ?? 0;
+                }
 
-        protected TmdbApi TmdbApi => this.tmdbApi;
+                if (seasonNumber > 0)
+                {
+                    this.Log($"Found season number of filename: {fileName} seasonNumber: {seasonNumber}");
+                    return seasonNumber;
+                }
+            }
 
-        protected TvdbApi TvdbApi => this.tvdbApi;
+            regSeason = new Regex(@"(?<![a-z])S(\d\d?)(?![0-9a-z])", RegexOptions.Compiled | RegexOptions.IgnoreCase);
+            match = regSeason.Match(fileName);
+            if (match.Success && match.Groups.Count > 1)
+            {
+                var seasonNumber = match.Groups[1].Value.ToInt();
+                if (seasonNumber > 0)
+                {
+                    this.Log($"Found season number of filename: {fileName} seasonNumber: {seasonNumber}");
+                    return seasonNumber;
+                }
+            }
 
-        protected OmdbApi OmdbApi => this.omdbApi;
+            var seasonNameMap = new Dictionary<string, int>()
+            {
+                { @"[ ._](I|1st)[ ._]", 1 },
+                { @"[ ._](II|2nd)[ ._]", 2 },
+                { @"[ ._](III|3rd)[ ._]", 3 },
+                { @"[ ._](IIII|4th)[ ._]", 3 },
+            };
 
-        protected ImdbApi ImdbApi => this.imdbApi;
+            foreach (var entry in seasonNameMap)
+            {
+                if (Regex.IsMatch(fileName, entry.Key))
+                {
+                    this.Log($"Found season number of filename: {fileName} seasonNumber: {entry.Value}");
+                    return entry.Value;
+                }
+            }
 
-        protected ILibraryManager LibraryManager => this.libraryManager;
+            return null;
+        }
 
-        protected IHttpContextAccessor HttpContextAccessor => this.httpContextAccessor;
-
-        protected Regex RegMetaSourcePrefix => this.regMetaSourcePrefix;
-
-        protected Regex RegSeasonNameSuffix => this.regSeasonNameSuffix;
-
-        protected Regex RegDoubanIdAttribute => this.regDoubanIdAttribute;
-
-        protected Regex RegTmdbIdAttribute => this.regTmdbIdAttribute;
-
+        /// <summary>
+        /// Guesses the tvdb id.
+        /// </summary>
         protected async Task<string?> GuessByTvdbAsync(ItemLookupInfo info, CancellationToken cancellationToken)
         {
             ArgumentNullException.ThrowIfNull(info);
             var fileName = GetOriginalFileName(info);
+
             var parseResult = NameParser.Parse(fileName);
             var searchName = !string.IsNullOrEmpty(parseResult.ChineseName) ? parseResult.ChineseName : parseResult.Name;
+
+            this.Log($"GuessByTvdb of [name]: {info.Name} [file_name]: {fileName} [search name]: {searchName}");
+
             var results = await this.TvdbApi.SearchSeriesAsync(searchName, info.MetadataLanguage, cancellationToken).ConfigureAwait(false);
+
             if (info.Year.HasValue && info.Year > 0)
             {
                 var item = results.FirstOrDefault(x => x.Year == info.Year.Value.ToString(CultureInfo.InvariantCulture) && (x.Name == searchName || x.Name == info.Name));
                 if (item != null)
                 {
                     var finalId = !string.IsNullOrEmpty(item.TvdbId) ? item.TvdbId : item.Id;
+                    this.Log($"Found tvdb [id]: {item.Name}({finalId}) by year match");
                     return finalId;
                 }
             }
@@ -284,6 +383,7 @@ namespace Jellyfin.Plugin.MetaShark.Providers
             if (nameMatch != null)
             {
                 var finalId = !string.IsNullOrEmpty(nameMatch.TvdbId) ? nameMatch.TvdbId : nameMatch.Id;
+                this.Log($"Found tvdb [id]: {nameMatch.Name}({finalId}) by name match");
                 return finalId;
             }
 
@@ -291,166 +391,207 @@ namespace Jellyfin.Plugin.MetaShark.Providers
             {
                 var item = results[0];
                 var finalId = !string.IsNullOrEmpty(item.TvdbId) ? item.TvdbId : item.Id;
+                this.Log($"Found tvdb [id]: {item.Name}({finalId}) by first match");
                 return finalId;
             }
 
             return null;
         }
 
+        /// <summary>
+        /// Guesses the douban sid.
+        /// </summary>
         protected async Task<string?> GuessByDoubanAsync(ItemLookupInfo info, CancellationToken cancellationToken)
         {
             ArgumentNullException.ThrowIfNull(info);
             var fileName = GetOriginalFileName(info);
+
             var doubanId = this.RegDoubanIdAttribute.FirstMatchGroup(fileName);
-            if (!string.IsNullOrWhiteSpace(doubanId)) return doubanId;
+            if (!string.IsNullOrWhiteSpace(doubanId))
+            {
+                this.Log($"Found douban [id] by attr: {doubanId}");
+                return doubanId;
+            }
+
             var parseResult = NameParser.Parse(fileName);
             var searchName = !string.IsNullOrEmpty(parseResult.ChineseName) ? parseResult.ChineseName : parseResult.Name;
             info.Year = parseResult.Year;
+
+            this.Log($"GuessByDouban of [name]: {info.Name} [file_name]: {fileName} [year]: {info.Year} [search name]: {searchName}");
             List<DoubanSubject> result;
+
             if (Config.EnableDoubanAvoidRiskControl)
             {
                 if (info.Year != null && info.Year > 0)
                 {
                     result = await this.DoubanApi.SearchBySuggestAsync(searchName, cancellationToken).ConfigureAwait(false);
                     var item = result.Where(x => x.Year == info.Year && x.Name == searchName).FirstOrDefault();
-                    if (item != null) return item.Sid;
+                    if (item != null)
+                    {
+                        this.Log($"Found douban [id]: {item.Name}({item.Sid}) (suggest)");
+                        return item.Sid;
+                    }
+
                     item = result.Where(x => x.Year == info.Year).FirstOrDefault();
-                    if (item != null) return item.Sid;
+                    if (item != null)
+                    {
+                        this.Log($"Found douban [id]: {item.Name}({item.Sid}) (suggest)");
+                        return item.Sid;
+                    }
                 }
             }
 
             result = await this.DoubanApi.SearchAsync(searchName, cancellationToken).ConfigureAwait(false);
             var cat = info is MovieInfo ? "电影" : "电视剧";
+
             if (info.Year != null && info.Year > 0)
             {
                 var item = result.Where(x => x.Category == cat && x.Year == info.Year).FirstOrDefault();
-                if (item != null) return item.Sid;
-                return null;
+                if (item != null)
+                {
+                    this.Log($"Found douban [id]: {item.Name}({item.Sid})");
+                    return item.Sid;
+                }
+                else
+                {
+                    return null;
+                }
             }
 
             var first = result.Where(x => x.Category == cat).FirstOrDefault();
-            if (first != null) return first.Sid;
-            return null;
-        }
-
-        public async Task<string?> GuestDoubanSeasonByYearAsync(string seriesName, int? year, int? seasonNumber, CancellationToken cancellationToken)
-        {
-            if (year == null || year == 0) return null;
-            if (Config.EnableDoubanAvoidRiskControl)
+            if (first != null)
             {
-                var suggestResult = await this.DoubanApi.SearchBySuggestAsync(seriesName, cancellationToken).ConfigureAwait(false);
-                var suggestItem = suggestResult.Where(x => x.Year == year && x.Name == seriesName).FirstOrDefault();
-                if (suggestItem != null) return suggestItem.Sid;
-                suggestItem = suggestResult.Where(x => x.Year == year).FirstOrDefault();
-                if (suggestItem != null) return suggestItem.Sid;
-            }
-
-            var result = await this.DoubanApi.SearchAsync(seriesName, cancellationToken).ConfigureAwait(false);
-            var item = result.Where(x => x.Category == "电视剧" && x.Year == year).FirstOrDefault();
-            if (item != null && !string.IsNullOrEmpty(item.Sid))
-            {
-                var nameIndexNumber = ParseChineseSeasonNumberByName(item.Name);
-                if (nameIndexNumber.HasValue && seasonNumber.HasValue && nameIndexNumber != seasonNumber) return null;
-                return item.Sid;
+                this.Log($"Found douban [id] by first match: {first.Name}({first.Sid})");
+                return first.Sid;
             }
 
             return null;
         }
 
-        public async Task<string?> GuestDoubanSeasonBySeasonNameAsync(string name, int? seasonNumber, CancellationToken cancellationToken)
-        {
-            if (seasonNumber is null or 0) return null;
-            var chineseSeasonNumber = Utils.ToChineseNumber(seasonNumber);
-            if (string.IsNullOrEmpty(chineseSeasonNumber)) return null;
-            var seasonName = (seasonNumber == 1) ? name : $"{name}{seasonNumber}";
-            var chineseSeasonName = $"{name} 第{chineseSeasonNumber}季";
-            var result = await this.DoubanApi.SearchAsync(name, cancellationToken).ConfigureAwait(false);
-            var item = result.Where(x => x.Category == "电视剧" && x.Rating > 0 && (x.Name == seasonName || x.Name == chineseSeasonName)).FirstOrDefault();
-            if (item != null && !string.IsNullOrEmpty(item.Sid)) return item.Sid;
-            return null;
-        }
-
-        public int? GuessSeasonNumberByDirectoryName(string path)
-        {
-            if (string.IsNullOrEmpty(path)) return null;
-            var fileName = Path.GetFileName(path);
-            if (string.IsNullOrEmpty(fileName)) return null;
-            var regSeason = new Regex(@"第([0-9零一二三四五六七八九]+?)(季|部)", RegexOptions.Compiled);
-            var match = regSeason.Match(fileName);
-            if (match.Success && match.Groups.Count > 1)
-            {
-                var sn = match.Groups[1].Value.ToInt();
-                if (sn <= 0) sn = Utils.ChineseNumberToInt(match.Groups[1].Value) ?? 0;
-                if (sn > 0) return sn;
-            }
-
-            regSeason = new Regex(@"(?<![a-z])S(\d\d?)(?![0-9a-z])", RegexOptions.Compiled | RegexOptions.IgnoreCase);
-            match = regSeason.Match(fileName);
-            if (match.Success && match.Groups.Count > 1)
-            {
-                var sn = match.Groups[1].Value.ToInt();
-                if (sn > 0) return sn;
-            }
-
-            var seasonNameMap = new Dictionary<string, int>() { { @"[ ._](I|1st)[ ._]", 1 }, { @"[ ._](II|2nd)[ ._]", 2 }, { @"[ ._](III|3rd)[ ._]", 3 }, { @"[ ._](IIII|4th)[ ._]", 3 } };
-            foreach (var entry in seasonNameMap) if (Regex.IsMatch(fileName, entry.Key)) return entry.Value;
-            return null;
-        }
-
+        /// <summary>
+        /// Guesses the tmdb id.
+        /// </summary>
         protected async Task<string?> GuestByTmdbAsync(ItemLookupInfo info, CancellationToken cancellationToken)
         {
             ArgumentNullException.ThrowIfNull(info);
             var fileName = GetOriginalFileName(info);
+
             var tmdbId = this.RegTmdbIdAttribute.FirstMatchGroup(fileName);
-            if (!string.IsNullOrWhiteSpace(tmdbId)) return tmdbId;
+            if (!string.IsNullOrWhiteSpace(tmdbId))
+            {
+                this.Log($"Found tmdb [id] by attr: {tmdbId}");
+                return tmdbId;
+            }
+
             var parseResult = NameParser.Parse(fileName);
             var searchName = !string.IsNullOrEmpty(parseResult.ChineseName) ? parseResult.ChineseName : parseResult.Name;
             info.Year = parseResult.Year;
+
             return await this.GuestByTmdbAsync(searchName, info.Year, info, cancellationToken).ConfigureAwait(false);
         }
 
+        /// <summary>
+        /// Guesses the tmdb id by name and year.
+        /// </summary>
         protected async Task<string?> GuestByTmdbAsync(string name, int? year, ItemLookupInfo info, CancellationToken cancellationToken)
         {
             ArgumentNullException.ThrowIfNull(info);
+            this.Log($"GuestByTmdb of [name]: {name} [year]: {year}");
             switch (info)
             {
                 case MovieInfo:
                     var movieResults = await this.TmdbApi.SearchMovieAsync(name, year ?? 0, info.MetadataLanguage, cancellationToken).ConfigureAwait(false);
                     var movieItem = movieResults.FirstOrDefault(x => x.Title == name || x.OriginalTitle == name) ?? (movieResults.Count > 0 ? movieResults[0] : null);
-                    if (movieItem != null) return movieItem.Id.ToString(CultureInfo.InvariantCulture);
+                    if (movieItem != null)
+                    {
+                        this.Log($"Found tmdb [id]: {movieItem.Title}({movieItem.Id})");
+                        return movieItem.Id.ToString(CultureInfo.InvariantCulture);
+                    }
                     break;
                 case SeriesInfo:
                     var seriesResults = await this.TmdbApi.SearchSeriesAsync(name, info.MetadataLanguage, cancellationToken).ConfigureAwait(false);
                     var seriesItem = seriesResults.FirstOrDefault(x => (x.Name == name || x.OriginalName == name) && x.FirstAirDate?.Year == year) ?? seriesResults.FirstOrDefault(x => x.FirstAirDate?.Year == year) ?? seriesResults.FirstOrDefault(x => x.Name == name || x.OriginalName == name) ?? (seriesResults.Count > 0 ? seriesResults[0] : null);
-                    if (seriesItem != null) return seriesItem.Id.ToString(CultureInfo.InvariantCulture);
+                    if (seriesItem != null)
+                    {
+                        this.Log($"Found tmdb [id]: -> {seriesItem.Name}({seriesItem.Id})");
+                        return seriesItem.Id.ToString(CultureInfo.InvariantCulture);
+                    }
                     break;
             }
 
+            this.Log($"Not found tmdb id by [name]: {name} [year]: {year}");
             return null;
         }
 
+        /// <summary>
+        /// Gets the tmdb id by imdb id.
+        /// </summary>
         protected async Task<string?> GetTmdbIdByImdbAsync(string imdb, string language, ItemLookupInfo info, CancellationToken cancellationToken)
         {
-            if (string.IsNullOrEmpty(imdb)) return null;
-            var findResult = await this.TmdbApi.FindByExternalIdAsync(imdb, TMDbLib.Objects.Find.FindExternalSource.Imdb, language, cancellationToken).ConfigureAwait(false);
-            if (info is MovieInfo && findResult?.MovieResults?.Count > 0) return findResult.MovieResults[0].Id.ToString(CultureInfo.InvariantCulture);
-            if (info is SeriesInfo)
+            if (string.IsNullOrEmpty(imdb))
             {
-                if (findResult?.TvResults?.Count > 0) return findResult.TvResults[0].Id.ToString(CultureInfo.InvariantCulture);
-                if (findResult?.TvEpisode?.Count > 0) return findResult.TvEpisode[0].ShowId.ToString(CultureInfo.InvariantCulture);
-                if (findResult?.TvSeason?.Count > 0) return findResult.TvSeason[0].ShowId.ToString(CultureInfo.InvariantCulture);
+                return null;
             }
 
+            var findResult = await this.TmdbApi.FindByExternalIdAsync(imdb, TMDbLib.Objects.Find.FindExternalSource.Imdb, language, cancellationToken).ConfigureAwait(false);
+
+            if (info is MovieInfo && findResult?.MovieResults != null && findResult.MovieResults.Count > 0)
+            {
+                var tmdbId = findResult.MovieResults[0].Id;
+                this.Log($"Found tmdb [id]: {tmdbId} by imdb id: {imdb}");
+                return $"{tmdbId}";
+            }
+
+            if (info is SeriesInfo)
+            {
+                if (findResult?.TvResults != null && findResult.TvResults.Count > 0)
+                {
+                    var tmdbId = findResult.TvResults[0].Id;
+                    this.Log($"Found tmdb [id]: {tmdbId} by imdb id: {imdb}");
+                    return $"{tmdbId}";
+                }
+
+                if (findResult?.TvEpisode != null && findResult.TvEpisode.Count > 0)
+                {
+                    var tmdbId = findResult.TvEpisode[0].ShowId;
+                    this.Log($"Found tmdb [id]: {tmdbId} by imdb id: {imdb}");
+                    return $"{tmdbId}";
+                }
+
+                if (findResult?.TvSeason != null && findResult.TvSeason.Count > 0)
+                {
+                    var tmdbId = findResult.TvSeason[0].ShowId;
+                    this.Log($"Found tmdb [id]: {tmdbId} by imdb id: {imdb}");
+                    return $"{tmdbId}";
+                }
+            }
+
+            this.Log($"Not found tmdb id by imdb id: {imdb}");
             return null;
         }
 
+        /// <summary>
+        /// Checks for a new imdb id via omdb.
+        /// </summary>
         protected async Task<string> CheckNewImdbID(string imdb, CancellationToken cancellationToken)
         {
-            if (string.IsNullOrEmpty(imdb)) return imdb;
+            if (string.IsNullOrEmpty(imdb))
+            {
+                return imdb;
+            }
+
             var omdbItem = await this.OmdbApi.GetByImdbID(imdb, cancellationToken).ConfigureAwait(false);
-            return !string.IsNullOrEmpty(omdbItem?.ImdbID) ? omdbItem.ImdbID : imdb;
+            if (!string.IsNullOrEmpty(omdbItem?.ImdbID))
+            {
+                imdb = omdbItem.ImdbID;
+            }
+
+            return imdb;
         }
 
+        /// <summary>
+        /// Gets the proxy image url.
+        /// </summary>
         protected Uri GetProxyImageUrl(Uri url)
         {
             ArgumentNullException.ThrowIfNull(url);
@@ -459,101 +600,192 @@ namespace Jellyfin.Plugin.MetaShark.Providers
             return new Uri($"{baseUrl}/plugin/metashark/proxy/image/?url={encodedUrl}", UriKind.Absolute);
         }
 
+        /// <summary>
+        /// Logs a message.
+        /// </summary>
         protected void Log(string? message, params object?[] args)
         {
-            var formatted = string.Format(CultureInfo.InvariantCulture, message ?? string.Empty, args);
+            var format = message ?? string.Empty;
+            var formatted = string.Format(CultureInfo.InvariantCulture, format, args);
             LogMetaSharkInfo(this.Logger, formatted, null);
         }
 
+        /// <summary>
+        /// Gets the douban poster url.
+        /// </summary>
         protected string GetDoubanPoster(DoubanSubject subject)
         {
             ArgumentNullException.ThrowIfNull(subject);
-            if (string.IsNullOrEmpty(subject.Img)) return string.Empty;
+            if (string.IsNullOrEmpty(subject.Img))
+            {
+                return string.Empty;
+            }
+
             var url = Config.EnableDoubanLargePoster ? subject.ImgLarge : subject.ImgMiddle;
             return this.GetProxyImageUrl(new Uri(url, UriKind.Absolute)).ToString();
         }
 
+        /// <summary>
+        /// Gets the original season path.
+        /// </summary>
         protected string? GetOriginalSeasonPath(EpisodeInfo info)
         {
             ArgumentNullException.ThrowIfNull(info);
-            if (info.Path == null) return null;
+            if (info.Path == null)
+            {
+                return null;
+            }
+
             var seasonPath = Path.GetDirectoryName(info.Path);
-            if (string.IsNullOrEmpty(seasonPath)) return null;
+            if (string.IsNullOrEmpty(seasonPath))
+            {
+                return null;
+            }
+
             var item = this.LibraryManager.FindByPath(seasonPath, true);
-            if (item is Series) return null;
+
+            if (item is Series)
+            {
+                return null;
+            }
+
             return seasonPath;
         }
 
+        /// <summary>
+        /// Checks if it is a virtual season.
+        /// </summary>
         protected bool IsVirtualSeason(EpisodeInfo info)
         {
             ArgumentNullException.ThrowIfNull(info);
-            if (info.Path == null) return false;
+            if (info.Path == null)
+            {
+                return false;
+            }
+
             var seasonPath = Path.GetDirectoryName(info.Path);
-            if (string.IsNullOrEmpty(seasonPath)) return false;
+            if (string.IsNullOrEmpty(seasonPath))
+            {
+                return false;
+            }
+
             var parent = this.LibraryManager.FindByPath(seasonPath, true);
-            if (parent is Series) return true;
+
+            if (parent is Series)
+            {
+                return true;
+            }
+
             var seriesPath = Path.GetDirectoryName(seasonPath);
-            if (string.IsNullOrEmpty(seriesPath)) return false;
+            if (string.IsNullOrEmpty(seriesPath))
+            {
+                return false;
+            }
+
             var series = this.LibraryManager.FindByPath(seriesPath, true);
-            if (series is Series && parent is not Season) return true;
+
+            if (series is Series && parent is not Season)
+            {
+                return true;
+            }
+
             return false;
         }
 
+        /// <summary>
+        /// Removes the season suffix from name.
+        /// </summary>
         protected string RemoveSeasonSuffix(string name)
         {
             return this.RegSeasonNameSuffix.Replace(name, string.Empty);
         }
 
+        /// <summary>
+        /// Gets the episode from tmdb.
+        /// </summary>
         protected async Task<TMDbLib.Objects.Search.TvSeasonEpisode?> GetEpisodeAsync(int seriesTmdbId, int? seasonNumber, int? episodeNumber, string displayOrder, string? language, string? imageLanguages, CancellationToken cancellationToken)
         {
-            if (!seasonNumber.HasValue || !episodeNumber.HasValue) return null;
+            if (!seasonNumber.HasValue || !episodeNumber.HasValue)
+            {
+                return null;
+            }
+
             var normalizedLanguage = language ?? string.Empty;
             var normalizedImageLanguages = imageLanguages ?? string.Empty;
             var seriesIdStr = seriesTmdbId.ToString(CultureInfo.InvariantCulture);
             if (TmdbEpisodeGroupMapping.TryGetGroupId(Config.TmdbEpisodeGroupMap, seriesIdStr, out var groupId))
             {
-                var group = await this.TmdbApi.GetEpisodeGroupByIdAsync(groupId, normalizedLanguage, cancellationToken).ConfigureAwait(false);
+                var group = await this.TmdbApi
+                    .GetEpisodeGroupByIdAsync(groupId, normalizedLanguage, cancellationToken)
+                    .ConfigureAwait(false);
                 if (group != null)
                 {
                     var season = group.Groups.Find(s => s.Order == seasonNumber);
+
                     var ep = season?.Episodes.Find(e => e.Order == episodeNumber - 1);
                     if (ep is not null)
                     {
-                        var result = await this.TmdbApi.GetSeasonAsync(seriesTmdbId, ep.SeasonNumber, normalizedLanguage, normalizedImageLanguages, cancellationToken).ConfigureAwait(false);
-                        if (result?.Episodes != null && ep.EpisodeNumber <= result.Episodes.Count) return result.Episodes[ep.EpisodeNumber - 1];
+                        var result = await this.TmdbApi
+                            .GetSeasonAsync(seriesTmdbId, ep.SeasonNumber, normalizedLanguage, normalizedImageLanguages, cancellationToken)
+                            .ConfigureAwait(false);
+                        if (result?.Episodes != null && ep.EpisodeNumber <= result.Episodes.Count)
+                        {
+                            return result.Episodes[ep.EpisodeNumber - 1];
+                        }
                     }
                 }
             }
 
             if (!string.IsNullOrWhiteSpace(displayOrder))
             {
-                var group = await this.TmdbApi.GetSeriesGroupAsync(seriesTmdbId, displayOrder, normalizedLanguage, normalizedImageLanguages, cancellationToken).ConfigureAwait(false);
+                var group = await this.TmdbApi
+                    .GetSeriesGroupAsync(seriesTmdbId, displayOrder, normalizedLanguage, normalizedImageLanguages, cancellationToken)
+                    .ConfigureAwait(false);
                 if (group != null)
                 {
                     var season = group.Groups.Find(s => s.Order == seasonNumber);
+
                     var ep = season?.Episodes.Find(e => e.Order == episodeNumber - 1);
                     if (ep is not null)
                     {
-                        var result = await this.TmdbApi.GetSeasonAsync(seriesTmdbId, ep.SeasonNumber, normalizedLanguage, normalizedImageLanguages, cancellationToken).ConfigureAwait(false);
-                        if (result?.Episodes != null && ep.EpisodeNumber <= result.Episodes.Count) return result.Episodes[ep.EpisodeNumber - 1];
+                        var result = await this.TmdbApi
+                            .GetSeasonAsync(seriesTmdbId, ep.SeasonNumber, normalizedLanguage, normalizedImageLanguages, cancellationToken)
+                            .ConfigureAwait(false);
+                        if (result?.Episodes != null && ep.EpisodeNumber <= result.Episodes.Count)
+                        {
+                            return result.Episodes[ep.EpisodeNumber - 1];
+                        }
                     }
                 }
             }
 
-            var seasonResult = await this.TmdbApi.GetSeasonAsync(seriesTmdbId, seasonNumber.Value, normalizedLanguage, normalizedImageLanguages, cancellationToken).ConfigureAwait(false);
-            if (seasonResult?.Episodes != null && episodeNumber.Value <= seasonResult.Episodes.Count) return seasonResult.Episodes[episodeNumber.Value - 1];
+            var seasonResult = await this.TmdbApi
+                .GetSeasonAsync(seriesTmdbId, seasonNumber.Value, normalizedLanguage, normalizedImageLanguages, cancellationToken)
+                .ConfigureAwait(false);
+            if (seasonResult?.Episodes != null && episodeNumber.Value <= seasonResult.Episodes.Count)
+            {
+                return seasonResult.Episodes[episodeNumber.Value - 1];
+            }
+
             return null;
         }
 
-        protected static int? ParseChineseSeasonNumberByName(string name)
+        private static int? ParseChineseSeasonNumberByName(string name)
         {
             var regSeason = new Regex(@"\s第([0-9零一二三四五六七八九]+?)(季|部)", RegexOptions.Compiled);
             var match = regSeason.Match(name);
             if (match.Success && match.Groups.Count > 1)
             {
                 var sn = match.Groups[1].Value.ToInt();
-                if (sn <= 0) sn = Utils.ChineseNumberToInt(match.Groups[1].Value) ?? 0;
-                if (sn > 0) return sn;
+                if (sn <= 0)
+                {
+                    sn = Utils.ChineseNumberToInt(match.Groups[1].Value) ?? 0;
+                }
+
+                if (sn > 0)
+                {
+                    return sn;
+                }
             }
 
             return null;
@@ -561,15 +793,31 @@ namespace Jellyfin.Plugin.MetaShark.Providers
 
         private static T? FindFirst<T>(IReadOnlyList<T> items, Func<T, bool> predicate)
         {
-            for (var i = 0; i < items.Count; i++) { var item = items[i]; if (predicate(item)) return item; }
+            for (var i = 0; i < items.Count; i++)
+            {
+                var item = items[i];
+                if (predicate(item))
+                {
+                    return item;
+                }
+            }
+
             return default;
         }
 
         private string GetBaseUrl()
         {
             var proxyBaseUrl = Config.DoubanImageProxyBaseUrl;
-            if (!string.IsNullOrWhiteSpace(proxyBaseUrl)) return proxyBaseUrl.TrimEnd('/');
-            if (MetaSharkPlugin.Instance != null && this.HttpContextAccessor.HttpContext != null) return MetaSharkPlugin.Instance.GetApiBaseUrl(this.HttpContextAccessor.HttpContext.Request).ToString();
+            if (!string.IsNullOrWhiteSpace(proxyBaseUrl))
+            {
+                return proxyBaseUrl.TrimEnd('/');
+            }
+
+            if (MetaSharkPlugin.Instance != null && this.HttpContextAccessor.HttpContext != null)
+            {
+                return MetaSharkPlugin.Instance.GetApiBaseUrl(this.HttpContextAccessor.HttpContext.Request).ToString();
+            }
+
             return MetaSharkPlugin.Instance?.GetLocalApiBaseUrl().ToString() ?? string.Empty;
         }
     }

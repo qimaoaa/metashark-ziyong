@@ -21,6 +21,9 @@ namespace Jellyfin.Plugin.MetaShark.Api
     using Microsoft.Extensions.Caching.Memory;
     using Microsoft.Extensions.Logging;
 
+    /// <summary>
+    /// TheTVDB API client.
+    /// </summary>
     public sealed class TvdbApi : IDisposable
     {
         private const string DefaultApiHost = "https://api4.thetvdb.com/v4/";
@@ -39,6 +42,9 @@ namespace Jellyfin.Plugin.MetaShark.Api
         private readonly string pin;
         private readonly string apiHost;
 
+        /// <summary>
+        /// Initializes a new instance of the <see cref="TvdbApi"/> class.
+        /// </summary>
         public TvdbApi(ILoggerFactory loggerFactory)
         {
             this.logger = loggerFactory.CreateLogger<TvdbApi>();
@@ -52,6 +58,9 @@ namespace Jellyfin.Plugin.MetaShark.Api
             this.httpClient = new HttpClient { BaseAddress = new Uri(this.apiHost), Timeout = TimeSpan.FromSeconds(15) };
         }
 
+        /// <summary>
+        /// Searches for series.
+        /// </summary>
         public async Task<IReadOnlyList<TvdbSearchResult>> SearchSeriesAsync(string name, string? language, CancellationToken cancellationToken)
         {
             if (string.IsNullOrWhiteSpace(this.apiKey))
@@ -89,6 +98,9 @@ namespace Jellyfin.Plugin.MetaShark.Api
             catch (TaskCanceledException) { return Array.Empty<TvdbSearchResult>(); }
         }
 
+        /// <summary>
+        /// Gets series metadata.
+        /// </summary>
         public async Task<TvdbSeries?> GetSeriesAsync(int id, string? language, CancellationToken cancellationToken)
         {
             if (string.IsNullOrWhiteSpace(this.apiKey))
@@ -135,6 +147,9 @@ namespace Jellyfin.Plugin.MetaShark.Api
             catch (TaskCanceledException) { return null; }
         }
 
+        /// <summary>
+        /// Gets series episodes.
+        /// </summary>
         public async Task<IReadOnlyList<TvdbEpisode>> GetSeriesEpisodesAsync(int seriesId, string seasonType, int seasonNumber, string? language, CancellationToken cancellationToken)
         {
             if (string.IsNullOrWhiteSpace(this.apiKey))
@@ -192,6 +207,9 @@ namespace Jellyfin.Plugin.MetaShark.Api
             return episodes;
         }
 
+        /// <summary>
+        /// Gets episode group data.
+        /// </summary>
         public async Task<TvdbEpisodeGroup?> GetEpisodeGroupAsync(int groupId, CancellationToken cancellationToken)
         {
             if (string.IsNullOrWhiteSpace(this.apiKey))
@@ -217,6 +235,7 @@ namespace Jellyfin.Plugin.MetaShark.Api
             catch (TaskCanceledException) { return null; }
         }
 
+        /// <inheritdoc />
         public void Dispose()
         {
             this.memoryCache.Dispose();

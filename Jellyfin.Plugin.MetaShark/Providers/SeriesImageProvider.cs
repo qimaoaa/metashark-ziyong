@@ -24,8 +24,14 @@ namespace Jellyfin.Plugin.MetaShark.Providers
     using Microsoft.AspNetCore.Http;
     using Microsoft.Extensions.Logging;
 
+    /// <summary>
+    /// Series image provider.
+    /// </summary>
     public class SeriesImageProvider : BaseProvider, IRemoteImageProvider
     {
+        /// <summary>
+        /// Initializes a new instance of the <see cref="SeriesImageProvider"/> class.
+        /// </summary>
         public SeriesImageProvider(IHttpClientFactory httpClientFactory, ILoggerFactory loggerFactory, ILibraryManager libraryManager, IHttpContextAccessor httpContextAccessor, DoubanApi doubanApi, TmdbApi tmdbApi, OmdbApi omdbApi, ImdbApi imdbApi, TvdbApi tvdbApi)
             : base(httpClientFactory, loggerFactory.CreateLogger<SeriesImageProvider>(), libraryManager, httpContextAccessor, doubanApi, tmdbApi, omdbApi, imdbApi, tvdbApi)
         {
@@ -164,19 +170,19 @@ namespace Jellyfin.Plugin.MetaShark.Providers
                     var tvdbSeries = await this.TvdbApi.GetSeriesAsync(id, language, cancellationToken).ConfigureAwait(false);
                     if (tvdbSeries != null)
                     {
-                    // 1. 默认封面
-                    if (!string.IsNullOrEmpty(tvdbSeries.Image))
-                    {
-                        res.Add(new RemoteImageInfo
+                        // 1. 默认封面
+                        if (!string.IsNullOrEmpty(tvdbSeries.Image))
                         {
-                            ProviderName = this.Name + " (TVDB)",
-                            Url = tvdbSeries.Image,
-                            Type = ImageType.Primary,
-                        });
-                    }
+                            res.Add(new RemoteImageInfo
+                            {
+                                ProviderName = this.Name + " (TVDB)",
+                                Url = tvdbSeries.Image,
+                                Type = ImageType.Primary,
+                            });
+                        }
 
-                    // 2. 扩展 Artwork
-                    if (tvdbSeries.Artworks != null)
+                        // 2. 扩展 Artwork
+                        if (tvdbSeries.Artworks != null)
                         {
                             foreach (var art in tvdbSeries.Artworks)
                             {
@@ -205,7 +211,7 @@ namespace Jellyfin.Plugin.MetaShark.Providers
                                     Url = art.Image,
                                     Type = imgType,
                                     Language = art.Language,
-                                    Width = 0, // TVDB v4 doesn't always provide width/height in basic Artwork
+                                    Width = 0,
                                     Height = 0,
                                 });
                             }
@@ -259,6 +265,45 @@ namespace Jellyfin.Plugin.MetaShark.Providers
                             };
                         }
                     }).ToList();
+                }
+            }
+
+            // 添加 TheMovieDb 背景图为备选
+            var tmdbId = item.GetProviderId(MetadataProvider.Tmdb);
+            if (Config.EnableTmdbBackdrop && !string.IsNullOrEmpty(tmdbId))
+            {
+                var language = item.GetPreferredMetadataLanguage();
+                var movie = await this.TmdbApi
+                .GetSeriesAsync(tmdbId.ToInt(), language, language, cancellationToken)
+                .ConfigureAwait(false);
+
+                if (movie != null && !string.IsNullOrEmpty(movie.BackdropPath))
+                {
+                    this.Log("GetBackdrop from tmdb id: {0} lang: {1}", tmdbId, language);
+                    list.Add(new RemoteImageInfo
+                    {
+                        ProviderName = this.Name + " (TMDB)",
+                        Url = this.TmdbApi.GetBackdropUrl(movie.BackdropPath)?.ToString(),
+                        Type = ImageType.Backdrop,
+                        Language = language,
+                    });
+                }
+            }
+
+            // 添加 TheTVDB 背景图为备选
+            var tvdbIdBackdrop = item.GetProviderId("Tvdb");
+            if (Config.EnableTvdbBackdrop && !string.IsNullOrEmpty(tvdbIdBackdrop))
+            {
+                var tvdbSeries = await this.TvdbApi.GetSeriesAsync(int.Parse(tvdbIdBackdrop, CultureInfo.InvariantCulture), item.GetPreferredMetadataLanguage(), cancellationToken).ConfigureAwait(false);
+                if (tvdbSeries?.Artworks != null)
+                {
+                    list.AddRange(tvdbSeries.Artworks.Where(a => (a.Type == 12 || a.Type == 3) && !string.IsNullOrEmpty(a.Image)).Select(a => new RemoteImageInfo
+                    {
+                        ProviderName = this.Name + " (TVDB)",
+                        Url = a.Image,
+                        Type = ImageType.Backdrop,
+                        Language = a.Language,
+                    }));
                 }
             }
 
